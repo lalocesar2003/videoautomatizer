@@ -2,39 +2,55 @@
 
 ## Tarea actual
 
-Corregir y estabilizar el parser de guiones.
+Implementar clasificador visual con Ollama.
 
 ## Objetivo
 
-El parser debe leer `script.md` con formato:
+Leer `data/scenes.json` y generar `data/visual_plan.json` clasificando cada escena en:
 
-[0:00 - 0:03] EL GANCHO
-• Visual: ...
-• Texto en pantalla: ...
-• Audio: ...
+- self_recorded
+- screen_recording
+- stock
+- mixed
 
-Y generar `data/scenes.json`.
+## Reglas
+
+- self_recorded → needs_pexels = false
+- screen_recording → needs_pexels = false
+- stock → needs_pexels = true
+- mixed → needs_pexels = true
 
 ## Archivos permitidos para modificar
 
-- parser/script_parser.py
+- ai/visual_classifier.py
+- ai/ollama_provider.py
 - main.py
-- tests/test_parser.py
+- data/visual_plan.json
+- tests/test_classifier.py
 
 ## No tocar
 
-- ai/visual_classifier.py
+- parser/script_parser.py
 - providers/pexels_provider.py
 - scoring/video_scorer.py
+- script.md
 
 ## Criterio de éxito
 
 Ejecutar:
 
-python3 main.py parse
+python3 main.py classify
 
 Debe generar:
 
-data/scenes.json
+data/visual_plan.json
 
-con todas las escenas detectadas.
+con una clasificación por cada escena del `scenes.json`.
+
+También debe mostrar en terminal algo como:
+
+Escena 1 → mixed → needs_pexels true
+Escena 2 → mixed o screen_recording → needs_pexels según corresponda
+Escena 3 → screen_recording → needs_pexels false
+Escena 4 → screen_recording → needs_pexels false
+Escena 5 → self_recorded → needs_pexels false
