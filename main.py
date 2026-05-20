@@ -2,13 +2,16 @@ import argparse
 import json
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from parser.script_parser import parse_script
-from ai.visual_classifier import classify_visual_scenes
 
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv()
 
 SCRIPT_PATH = Path("script.md")
 DATA_DIR = Path("data")
@@ -65,6 +68,8 @@ def run_parse() -> dict:
 
 
 def run_classify() -> dict:
+    from ai.visual_classifier import classify_visual_scenes
+
     parsed = load_json(SCENES_PATH)
 
     visual_plan = classify_visual_scenes(parsed)

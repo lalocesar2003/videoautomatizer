@@ -108,64 +108,6 @@ def parse_time_range(time_text: str) -> tuple[str, str]:
     return match.group("start"), match.group("end")
 
 
-def parse_markdown_scene_blocks(script_text: str) -> list[dict[str, Any]]:
-    """
-    Parser para formato recomendado:
-
-    ## Escena 1
-    Tiempo: 0:00 - 0:03
-    Sección: Hook
-
-    Visual:
-    ...
-
-    Audio:
-    ...
-    """
-
-    pattern = re.compile(
-        r"""
-        ^\s*##\s*Escena\s+(?P<number>\d+).*?\n
-        (?P<body>.*?)
-        (?=
-            ^\s*##\s*Escena\s+\d+
-            |
-            \Z
-        )
-        """,
-        re.IGNORECASE | re.MULTILINE | re.DOTALL | re.VERBOSE,
-    )
-
-    scenes = []
-
-    for match in pattern.finditer(script_text):
-        scene_number = int(match.group("number"))
-        body = match.group("body").strip()
-
-        time_text = extract_field(body, "time")
-        start, end = parse_time_range(time_text)
-
-        scene = {
-            "scene": scene_number,
-            "start": start,
-            "end": end,
-            "section": extract_field(body, "section"),
-            "visual": extract_field(body, "visual"),
-            "audio": extract_field(body, "audio"),
-            "text_on_screen": extract_field(body, "text_on_screen"),
-            "fx": extract_field(body, "fx"),
-            "editing_notes": extract_field(body, "editing_notes"),
-            "style_text": extract_field(body, "style_text"),
-            "tone_audio": extract_field(body, "tone_audio"),
-            "warnings": [],
-        }
-
-        scene["warnings"] = validate_scene(scene)
-        scenes.append(scene)
-
-    return scenes
-
-
 def parse_bracket_scene_blocks(script_text: str) -> list[dict[str, Any]]:
     """
     Parser para formato tipo:
@@ -190,10 +132,6 @@ def parse_bracket_scene_blocks(script_text: str) -> list[dict[str, Any]]:
         (?P<body>.*?)
         (?=
             ^\s*\[\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\]
-            |
-            ^\s*Tips\s+extra
-            |
-            ^\s*O\s+asi
             |
             \Z
         )
@@ -248,11 +186,7 @@ def validate_scene(scene: dict[str, Any]) -> list[str]:
 def parse_script(script_text: str) -> dict[str, Any]:
     title = extract_title(script_text)
     metadata = extract_metadata(script_text)
-
-    scenes = parse_markdown_scene_blocks(script_text)
-
-    if not scenes:
-        scenes = parse_bracket_scene_blocks(script_text)
+    scenes = parse_bracket_scene_blocks(script_text)
 
     return {
         "project_title": title,
