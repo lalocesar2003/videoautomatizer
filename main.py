@@ -19,6 +19,7 @@ SCENES_PATH = DATA_DIR / "scenes.json"
 VISUAL_PLAN_PATH = DATA_DIR / "visual_plan.json"
 PEXELS_RESULTS_PATH = DATA_DIR / "pexels_results.json"
 SCORED_RESULTS_PATH = DATA_DIR / "scored_results.json"
+PANEL_OUTPUT_PATH = Path("output") / "results_panel.html"
 
 
 def read_script() -> str:
@@ -139,6 +140,20 @@ def run_score() -> dict:
     return scored_results
 
 
+def run_panel() -> dict:
+    from panel.results_panel import generate_results_panel
+
+    scored_results = load_json(SCORED_RESULTS_PATH)
+    summary = generate_results_panel(scored_results, PANEL_OUTPUT_PATH)
+
+    print("\n✅ Panel generado")
+    print(f"Panel generado: {PANEL_OUTPUT_PATH}")
+    print(f"Escenas: {summary['scene_count']}")
+    print(f"Sugerencias: {summary['suggestion_count']}")
+
+    return summary
+
+
 def run_all() -> None:
     print("\n🚀 Ejecutando flujo completo")
     run_parse()
@@ -149,17 +164,18 @@ def run_all() -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="B-roll system: parser + classifier + Pexels search + scoring"
+        description="B-roll system: parser + classifier + Pexels search + scoring + panel"
     )
 
     parser.add_argument(
         "command",
-        choices=["parse", "classify", "search", "score", "all"],
+        choices=["parse", "classify", "search", "score", "panel", "all"],
         help=(
             "parse: genera scenes.json | "
             "classify: genera visual_plan.json | "
             "search: genera pexels_results.json | "
             "score: genera scored_results.json | "
+            "panel: genera output/results_panel.html | "
             "all: ejecuta parse + classify + search + score"
         ),
     )
@@ -177,6 +193,9 @@ def main():
 
     if args.command == "score":
         run_score()
+
+    if args.command == "panel":
+        run_panel()
 
     if args.command == "all":
         run_all()
