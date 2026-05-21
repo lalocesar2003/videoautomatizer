@@ -2,29 +2,40 @@
 
 ## Tarea actual
 
-Implementar búsqueda de videos en Pexels.
+Implementar scoring de videos.
 
 ## Objetivo
 
-Leer `data/visual_plan.json` y generar `data/pexels_results.json` buscando videos solo para escenas con:
+Leer `data/pexels_results.json` y generar `data/scored_results.json` agregando un puntaje a cada sugerencia de video.
 
-- needs_pexels = true
+## Reglas de scoring
 
-## Reglas
+- +40 si el video es vertical.
+- +25 si dura entre 4 y 20 segundos.
+- +20 si es HD o superior.
+- +10 si tiene thumbnail.
+- +10 si coincide con la intención visual.
+- -30 si es horizontal.
+- -40 si dura demasiado.
+- -50 si tiene logos, marcas o texto visible.
 
-- No buscar escenas con `needs_pexels = false`.
-- Usar `search_query_en` como query.
-- Si el formato del proyecto es vertical, usar orientación `portrait`.
+## Reglas de implementación
+
 - No descargar videos.
-- No implementar scoring todavía.
-- Guardar resultados normalizados y legibles.
+- No implementar frontend.
+- No llamar a Pexels.
+- No modificar el parser.
+- No rehacer el clasificador.
+- No agregar dependencias nuevas.
+- Mantener el scoring simple y transparente.
+- El proyecto debe funcionar primero en terminal.
 
 ## Archivos permitidos para modificar
 
-- providers/pexels_provider.py
+- scoring/video_scorer.py
 - main.py
-- data/pexels_results.json
-- tests/test_pexels_provider.py
+- data/scored_results.json
+- tests/test_video_scorer.py
 
 ## No tocar
 
@@ -33,40 +44,36 @@ Leer `data/visual_plan.json` y generar `data/pexels_results.json` buscando video
 - ai/visual_classifier.py
 - ai/ollama_provider.py
 - tests/test_classifier.py
-- scoring/video_scorer.py
+- providers/pexels_provider.py
+- tests/test_pexels_provider.py
 - script.md
 
 ## Criterio de éxito
 
 Ejecutar:
 
-python3 main.py search
+python3 main.py score
 
 Debe leer:
 
-data/visual_plan.json
+data/pexels_results.json
 
 Y generar:
 
-data/pexels_results.json
+data/scored_results.json
 
-con resultados solo para escenas donde:
+con la misma estructura base de escenas, pero cada sugerencia debe incluir:
 
-needs_pexels = true
-
-La salida debe incluir:
-
-- scene
-- asset_type
-- visual_intent
-- query
-- suggestions
-- page_url
-- preview_url
-- thumbnail_url
-- duration
-- width
-- height
+- score
 - orientation
-- author_name
-- author_url
+- score_breakdown
+- requires_manual_review
+
+La salida en terminal debe mostrar algo como:
+
+Escena 1 → 5 sugerencias puntuadas
+Mejor score: 95
+
+## Nota
+
+En esta fase, `semantic_match` y `has_logo_or_text` pueden quedar como valores preparados/manuales. No implementar visión artificial todavía.

@@ -18,6 +18,7 @@ DATA_DIR = Path("data")
 SCENES_PATH = DATA_DIR / "scenes.json"
 VISUAL_PLAN_PATH = DATA_DIR / "visual_plan.json"
 PEXELS_RESULTS_PATH = DATA_DIR / "pexels_results.json"
+SCORED_RESULTS_PATH = DATA_DIR / "scored_results.json"
 
 
 def read_script() -> str:
@@ -115,6 +116,29 @@ def run_search() -> dict:
     return pexels_results
 
 
+def run_score() -> dict:
+    from scoring.video_scorer import score_pexels_results
+
+    pexels_results = load_json(PEXELS_RESULTS_PATH)
+    scored_results = score_pexels_results(pexels_results)
+
+    save_json(SCORED_RESULTS_PATH, scored_results)
+
+    print("\n✅ Scoring terminado")
+    print(f"Archivo generado: {SCORED_RESULTS_PATH}")
+
+    for item in scored_results["results"]:
+        suggestions = item.get("suggestions", [])
+        best_score = suggestions[0]["score"] if suggestions else 0
+        print(
+            f"Escena {item['scene']} → "
+            f"{len(suggestions)} sugerencias puntuadas"
+        )
+        print(f"Mejor score: {best_score}")
+
+    return scored_results
+
+
 def run_all() -> None:
     run_parse()
     run_classify()
@@ -122,16 +146,17 @@ def run_all() -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="B-roll system: parser + classifier + Pexels search"
+        description="B-roll system: parser + classifier + Pexels search + scoring"
     )
 
     parser.add_argument(
         "command",
-        choices=["parse", "classify", "search", "all"],
+        choices=["parse", "classify", "search", "score", "all"],
         help=(
             "parse: genera scenes.json | "
             "classify: genera visual_plan.json | "
             "search: genera pexels_results.json | "
+            "score: genera scored_results.json | "
             "all: ejecuta parse + classify"
         ),
     )
@@ -146,6 +171,9 @@ def main():
 
     if args.command == "search":
         run_search()
+
+    if args.command == "score":
+        run_score()
 
     if args.command == "all":
         run_all()
