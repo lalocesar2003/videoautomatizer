@@ -17,6 +17,7 @@ SCRIPT_PATH = Path("script.md")
 DATA_DIR = Path("data")
 SCENES_PATH = DATA_DIR / "scenes.json"
 VISUAL_PLAN_PATH = DATA_DIR / "visual_plan.json"
+PEXELS_RESULTS_PATH = DATA_DIR / "pexels_results.json"
 
 
 def read_script() -> str:
@@ -93,6 +94,27 @@ def run_classify() -> dict:
     return visual_plan
 
 
+def run_search() -> dict:
+    from providers.pexels_provider import search_pexels_for_visual_plan
+
+    visual_plan = load_json(VISUAL_PLAN_PATH)
+    pexels_results = search_pexels_for_visual_plan(visual_plan)
+
+    save_json(PEXELS_RESULTS_PATH, pexels_results)
+
+    print("\n✅ Búsqueda en Pexels terminada")
+    print(f"Archivo generado: {PEXELS_RESULTS_PATH}")
+    print(f"Escenas buscadas: {len(pexels_results['results'])}")
+
+    for item in pexels_results["results"]:
+        print("-" * 60)
+        print(f"Escena {item['scene']} → {item['asset_type']}")
+        print(f"Query: {item['query']}")
+        print(f"Sugerencias: {len(item['suggestions'])}")
+
+    return pexels_results
+
+
 def run_all() -> None:
     run_parse()
     run_classify()
@@ -100,13 +122,18 @@ def run_all() -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="B-roll system: parser + visual classifier"
+        description="B-roll system: parser + classifier + Pexels search"
     )
 
     parser.add_argument(
         "command",
-        choices=["parse", "classify", "all"],
-        help="parse: genera scenes.json | classify: genera visual_plan.json | all: ejecuta ambos",
+        choices=["parse", "classify", "search", "all"],
+        help=(
+            "parse: genera scenes.json | "
+            "classify: genera visual_plan.json | "
+            "search: genera pexels_results.json | "
+            "all: ejecuta parse + classify"
+        ),
     )
 
     args = parser.parse_args()
@@ -116,6 +143,9 @@ def main():
 
     if args.command == "classify":
         run_classify()
+
+    if args.command == "search":
+        run_search()
 
     if args.command == "all":
         run_all()
