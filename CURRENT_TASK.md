@@ -2,36 +2,37 @@
 
 ## Tarea actual
 
-Implementar clasificador visual con Ollama.
+Implementar búsqueda de videos en Pexels.
 
 ## Objetivo
 
-Leer `data/scenes.json` y generar `data/visual_plan.json` clasificando cada escena en:
+Leer `data/visual_plan.json` y generar `data/pexels_results.json` buscando videos solo para escenas con:
 
-- self_recorded
-- screen_recording
-- stock
-- mixed
+- needs_pexels = true
 
 ## Reglas
 
-- self_recorded → needs_pexels = false
-- screen_recording → needs_pexels = false
-- stock → needs_pexels = true
-- mixed → needs_pexels = true
+- No buscar escenas con `needs_pexels = false`.
+- Usar `search_query_en` como query.
+- Si el formato del proyecto es vertical, usar orientación `portrait`.
+- No descargar videos.
+- No implementar scoring todavía.
+- Guardar resultados normalizados y legibles.
 
 ## Archivos permitidos para modificar
 
-- ai/visual_classifier.py
-- ai/ollama_provider.py
+- providers/pexels_provider.py
 - main.py
-- data/visual_plan.json
-- tests/test_classifier.py
+- data/pexels_results.json
+- tests/test_pexels_provider.py
 
 ## No tocar
 
 - parser/script_parser.py
-- providers/pexels_provider.py
+- tests/test_parser.py
+- ai/visual_classifier.py
+- ai/ollama_provider.py
+- tests/test_classifier.py
 - scoring/video_scorer.py
 - script.md
 
@@ -39,18 +40,33 @@ Leer `data/scenes.json` y generar `data/visual_plan.json` clasificando cada esce
 
 Ejecutar:
 
-python3 main.py classify
+python3 main.py search
 
-Debe generar:
+Debe leer:
 
 data/visual_plan.json
 
-con una clasificación por cada escena del `scenes.json`.
+Y generar:
 
-También debe mostrar en terminal algo como:
+data/pexels_results.json
 
-Escena 1 → mixed → needs_pexels true
-Escena 2 → mixed o screen_recording → needs_pexels según corresponda
-Escena 3 → screen_recording → needs_pexels false
-Escena 4 → screen_recording → needs_pexels false
-Escena 5 → self_recorded → needs_pexels false
+con resultados solo para escenas donde:
+
+needs_pexels = true
+
+La salida debe incluir:
+
+- scene
+- asset_type
+- visual_intent
+- query
+- suggestions
+- page_url
+- preview_url
+- thumbnail_url
+- duration
+- width
+- height
+- orientation
+- author_name
+- author_url
