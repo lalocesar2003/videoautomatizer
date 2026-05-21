@@ -80,13 +80,15 @@ def run_classify() -> dict:
     print(f"Archivo generado: {VISUAL_PLAN_PATH}")
 
     for item in visual_plan["visual_plan"]:
-        print("-" * 60)
-        print(f"Escena {item['scene']}")
-        print(f"Tipo: {item['asset_type']}")
-        print(f"Needs Pexels: {item['needs_pexels']}")
-        print(f"Query: {item['search_query_en']}")
-        print(f"Confianza: {item['confidence']}")
-        print(f"Acción: {item['primary_action']}")
+        needs_pexels = str(item["needs_pexels"]).lower()
+        print(
+            f"Escena {item['scene']} → "
+            f"{item['asset_type']} → "
+            f"needs_pexels {needs_pexels}"
+        )
+        if item["search_query_en"]:
+            print(f"  Query: {item['search_query_en']}")
+        print(f"  Acción: {item['primary_action']}")
 
     return visual_plan
 
