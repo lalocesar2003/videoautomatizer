@@ -140,8 +140,11 @@ def run_score() -> dict:
 
 
 def run_all() -> None:
+    print("\n🚀 Ejecutando flujo completo")
     run_parse()
     run_classify()
+    run_search()
+    run_score()
 
 
 def main():
@@ -157,7 +160,7 @@ def main():
             "classify: genera visual_plan.json | "
             "search: genera pexels_results.json | "
             "score: genera scored_results.json | "
-            "all: ejecuta parse + classify"
+            "all: ejecuta parse + classify + search + score"
         ),
     )
 
