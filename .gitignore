@@ -8,3 +8,26 @@ data/*.json
 
 comoactivar.md
 taskresult.md
+
+# Claude Code / agentes IA — no pushear
+CLAUDE.md
+.claude/
+.claude.json
+.claude.local.json
+.agents/
+agents/
+.agent/
+.aider*
+.cursor/
+.cursorrules
+.cursorignore
+.windsurf/
+.windsurfrules
+.continue/
+.codeium/
+.copilot/
+.cline/
+.roo/
+.openhands/
+.devin/
+.zed/
