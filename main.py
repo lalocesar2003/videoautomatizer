@@ -14,6 +14,8 @@ if load_dotenv:
     load_dotenv()
 
 SCRIPT_PATH = Path("script.md")
+BRIEF_PATH = Path("brief.md")
+GENERATED_SCRIPT_PATH = Path("script.generated.md")
 DATA_DIR = Path("data")
 SCENES_PATH = DATA_DIR / "scenes.json"
 VISUAL_PLAN_PATH = DATA_DIR / "visual_plan.json"
@@ -43,6 +45,45 @@ def load_json(path: Path) -> dict:
         raise FileNotFoundError(f"No existe {path}")
 
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def run_generate() -> str:
+    from ai.script_generator import GenerationError, generate_script, parse_brief
+
+    if not BRIEF_PATH.exists():
+        raise FileNotFoundError(
+            f"No existe {BRIEF_PATH}. "
+            f"Copia brief.md.example a brief.md y edítalo."
+        )
+
+    brief_text = BRIEF_PATH.read_text(encoding="utf-8")
+    brief = parse_brief(brief_text)
+
+    print("\n📝 Generando guion a partir de brief.md…")
+    print(f"Tema: {brief['topic']}")
+
+    try:
+        script_markdown = generate_script(brief)
+    except GenerationError as error:
+        DATA_DIR.mkdir(exist_ok=True)
+        debug_path = DATA_DIR / "last_failed_script.md"
+
+        if error.last_attempt:
+            debug_path.write_text(error.last_attempt, encoding="utf-8")
+            print(f"\n❌ Último intento guardado en {debug_path} para debug.")
+
+        raise
+
+    GENERATED_SCRIPT_PATH.write_text(script_markdown, encoding="utf-8")
+
+    print("\n✅ Guion generado")
+    print(f"Archivo generado: {GENERATED_SCRIPT_PATH}")
+    print(
+        "Revísalo y, si te convence, renómbralo a script.md "
+        "o reemplaza el actual antes de correr parse."
+    )
+
+    return script_markdown
 
 
 def run_parse() -> dict:
@@ -169,8 +210,9 @@ def main():
 
     parser.add_argument(
         "command",
-        choices=["parse", "classify", "search", "score", "panel", "all"],
+        choices=["generate", "parse", "classify", "search", "score", "panel", "all"],
         help=(
+            "generate: brief.md → script.generated.md | "
             "parse: genera scenes.json | "
             "classify: genera visual_plan.json | "
             "search: genera pexels_results.json | "
@@ -181,6 +223,9 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.command == "generate":
+        run_generate()
 
     if args.command == "parse":
         run_parse()

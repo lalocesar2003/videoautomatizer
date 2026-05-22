@@ -2,85 +2,91 @@
 
 ## Tarea actual
 
-Issue #5 — Hacer configurable el proveedor de IA vía `.env`.
+Issue #7 — Generar `script.md` automáticamente desde un brief con IA.
 
 ## Objetivo
 
-Desacoplar `ai/visual_classifier.py` de Ollama. El proveedor de IA se
-elige en tiempo de ejecución leyendo `AI_PROVIDER` de `.env`. Añadir un
-nuevo proveedor debe ser cuestión de añadir un archivo y registrarlo,
-sin tocar el clasificador ni el pipeline.
+Añadir una fase nueva **antes** de `parse` que toma un `brief.md` (tema,
+duración, tono, audiencia, CTA) y produce `script.generated.md` con la
+estructura que el parser ya entiende (timestamps, secciones, líneas
+`• Visual:` / `• Texto en pantalla:` / `• Audio:`).
 
-Este issue **solo arma la abstracción**. Ollama queda como único
-proveedor funcional. Gemini y OpenAI son fuera de alcance (issues
-separados).
+El proveedor de IA se elige vía `AI_PROVIDER` en `.env` (issue #5 ya
+desbloqueó esto). Solo Ollama está implementado; Gemini queda para un
+issue futuro.
 
 ## Contexto del proyecto
 
-Flujo actual:
+Flujo nuevo:
 
-script.md
+brief.md
+→ generate            ← fase nueva (este issue)
+→ script.generated.md
+→ (el usuario lo revisa, lo edita si quiere, y lo renombra a script.md)
 → parser
 → data/scenes.json
-→ clasificador visual (Ollama hardcodeado — eso cambia aquí)
-→ data/visual_plan.json
-→ búsqueda Pexels
-→ data/pexels_results.json
-→ scoring
-→ data/scored_results.json
-→ panel Streamlit
-→ selección manual
-→ data/selected_assets.json
+→ clasificador visual
+→ ...
 
 ## Requisitos funcionales
 
-- `get_provider()` lee `AI_PROVIDER` de `.env` y devuelve el proveedor.
-- Cada proveedor valida sus variables requeridas al construirse
-  (fail fast, mensaje claro, nunca loggear la key).
-- Error claro si `AI_PROVIDER` no está definido, es desconocido, o
-  apunta a un proveedor aún no implementado (gemini / openai).
-- `ai/visual_classifier.py` deja de importar Ollama directamente y
-  usa el registro de proveedores.
-- `.env.example` lista todas las keys soportadas con placeholders.
-- `DECISIONS.md` Decisión #4 reescrita con el contrato nuevo.
-- Tests con `monkeypatch` del entorno, sin llamadas reales a APIs.
+- Nuevo comando `python3 main.py generate` lee `brief.md` y escribe
+  `script.generated.md`. **No** sobrescribe `script.md` (lo hace el
+  usuario manualmente cuando aprueba el guion).
+- El brief usa formato markdown plano con pares `Clave: valor` (igual
+  estilo que el resto del proyecto). Campos esperados: tema, plataforma,
+  duración objetivo, tono, audiencia, CTA, notas. Solo "tema" es
+  obligatorio; el resto da contexto opcional.
+- El proveedor se obtiene con `get_provider()` del registro existente.
+- El prompt incluye few-shot con al menos un ejemplo de guion válido.
+- El output se valida pasándolo por `parse_script()`. Debe:
+  - tener al menos una escena,
+  - tener `project_title`,
+  - no devolver warnings en ninguna escena (todos los campos
+    requeridos presentes: start, end, visual, audio, text_on_screen).
+- Si la validación falla, reintentar hasta 2 veces más con feedback
+  del error al modelo. Si después de 3 intentos sigue mal, fallar
+  con un mensaje claro y guardar el último intento en
+  `data/last_failed_script.md` para debug.
+- Mensajes en español, código y nombres en inglés (convención del repo).
 
 ## Archivos permitidos para modificar o crear
 
-- ai/visual_classifier.py
-- ai/ollama_provider.py
-- ai/provider_registry.py (nuevo)
-- ai/__init__.py
-- .env.example
-- DECISIONS.md
-- tests/test_provider_registry.py (nuevo)
+- ai/script_generator.py (nuevo)
+- main.py (añadir comando `generate`)
+- brief.md.example (nuevo)
+- tests/test_script_generator.py (nuevo)
+- README.md
 - CURRENT_TASK.md
 - CHANGELOG.md
 
 ## No tocar
 
 - parser/script_parser.py
+- ai/visual_classifier.py
+- ai/ollama_provider.py
+- ai/provider_registry.py
 - providers/pexels_provider.py
 - scoring/video_scorer.py
-- panel/streamlit_panel.py
-- panel/results_panel.py
-- selection/asset_selector.py
+- panel/*
+- selection/*
 - app.py
-- main.py
-- script.md
-- requirements.txt
+- script.md (lo sigue editando el usuario; el sistema escribe a
+  script.generated.md aparte por seguridad)
+- .env.example (las vars necesarias ya están desde #5)
+- requirements.txt (no se añaden dependencias)
 - data/*.json
 
 ## Fuera de alcance
 
-- Implementar el proveedor Gemini (issue separado, depende de este).
-- Implementar el proveedor OpenAI.
-- Scoring multimodal de thumbnails.
-- Cambiar el comportamiento del clasificador (mismos prompts, mismos
-  outputs).
+- Implementar Gemini de verdad (otro issue, ya planeado).
+- A/B testing de variantes de guion.
+- Generar imágenes o thumbnails.
+- Renombrar automáticamente `script.generated.md` a `script.md`.
 
 ## Comando esperado
 
-python3 main.py classify
+python3 main.py generate
 
-Debe seguir funcionando exactamente igual con `AI_PROVIDER=ollama`.
+Lee `brief.md` y escribe `script.generated.md`. Si `brief.md` no existe,
+falla con un mensaje claro que recomiende usar `brief.md.example`.

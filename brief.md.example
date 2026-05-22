@@ -1,0 +1,22 @@
+# Brief
+
+Tema: por qué dejar de usar Excel para gestionar cobros de clientes
+Plataforma: TikTok
+Duración objetivo: 45s
+Tono: directo, urgente, sin rodeos, dirigido a dueños que están perdiendo plata
+Audiencia: dueños de agencias y constructoras que controlan cobros en Excel
+CTA: que escriban "SISTEMA" al DM para acceder al producto
+Producto: Centro de Comando con dashboard Next.js y botón que arma un mensaje formal de cobro por WhatsApp
+Notas: incluir grabaciones de pantalla del dashboard, mostrar montos en soles peruanos (S/), debe transmitir autoridad y orden
+
+# Cómo usar este archivo
+
+1. Copia este archivo a `brief.md` (`cp brief.md.example brief.md`).
+2. Edita los campos arriba con tu idea concreta.
+3. Corre `python3 main.py generate`.
+4. Revisa `script.generated.md`. Si te convence, renómbralo a `script.md`
+   o reemplaza el actual.
+5. Continúa el pipeline normal: `parse`, `classify`, `search`, `score`.
+
+Solo "Tema" es obligatorio. El resto da contexto y mejora el guion,
+pero el modelo trabaja con lo que haya.
