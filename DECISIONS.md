@@ -25,9 +25,36 @@ Cada guion puede variar mucho.
 
 Solo se busca en Pexels si la escena es `stock` o `mixed`.
 
-## Decisión 4: Ollama/OpenAI
+## Decisión 4: Proveedor de IA configurable
 
-El sistema debe permitir usar Ollama local, pero dejar abierta la opción de OpenAI como fallback.
+El proveedor de IA se elige en tiempo de ejecución vía la variable
+`AI_PROVIDER` en `.env`. El clasificador no sabe ni le importa qué
+proveedor está detrás.
+
+Contrato del proveedor (`ai/provider_registry.py`):
+
+```
+Provider = Callable[[list[dict[str, str]], dict[str, Any]], dict[str, Any]]
+```
+
+Recibe mensajes en formato chat y un schema JSON; devuelve un dict que
+cumple ese schema.
+
+Reglas:
+
+- El proveedor activo se obtiene con `get_provider()`.
+- Cada proveedor lee sus credenciales de variables de entorno propias
+  (ej. `GEMINI_API_KEY`). Nunca se hardcodean ni se loggean.
+- Si `AI_PROVIDER` falta, es desconocido, o apunta a un proveedor aún
+  no implementado, el sistema falla rápido con un mensaje claro.
+- Añadir un proveedor nuevo = añadir un archivo en `ai/` y registrarlo
+  en `PROVIDER_FACTORIES`. No se toca el clasificador.
+
+Estado actual:
+
+- `ollama` — implementado.
+- `gemini`, `openai` — registrados como placeholders, fallan al
+  construirse hasta que se implementen en issues separados.
 
 ## Decisión 5: Descarga de clips
 

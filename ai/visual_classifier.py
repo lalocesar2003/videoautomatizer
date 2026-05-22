@@ -1,7 +1,7 @@
 import json
-from typing import Any, Callable
+from typing import Any
 
-from ai.ollama_provider import call_ollama_json
+from ai.provider_registry import Provider, get_provider
 
 
 ASSET_TYPES = {
@@ -76,9 +76,6 @@ Reglas obligatorias:
 - No inventes elementos ajenos a la escena.
 - Devuelve solo JSON válido siguiendo el schema.
 """.strip()
-
-
-Provider = Callable[[list[dict[str, str]], dict[str, Any]], dict[str, Any]]
 
 
 def build_classifier_payload(parsed_script: dict[str, Any]) -> dict[str, Any]:
@@ -292,7 +289,7 @@ def scene_text(scene: dict[str, Any]) -> str:
 def validate_scene_count(visual_plan: list[dict[str, Any]], scene_count: int) -> None:
     if len(visual_plan) != scene_count:
         raise ValueError(
-            f"Ollama devolvió {len(visual_plan)} clasificaciones, "
+            f"El proveedor devolvió {len(visual_plan)} clasificaciones, "
             f"pero scenes.json tiene {scene_count} escenas."
         )
 
@@ -315,8 +312,11 @@ def clamp_confidence(value: Any) -> float:
 
 def classify_visual_scenes(
     parsed_script: dict[str, Any],
-    provider: Provider = call_ollama_json,
+    provider: Provider | None = None,
 ) -> dict[str, Any]:
+    if provider is None:
+        provider = get_provider()
+
     payload = build_classifier_payload(parsed_script)
     messages = build_messages(payload)
     response = provider(messages, VISUAL_PLAN_SCHEMA)
@@ -324,7 +324,7 @@ def classify_visual_scenes(
     raw_plan = response.get("visual_plan")
 
     if not isinstance(raw_plan, list):
-        raise ValueError("La respuesta de Ollama no contiene visual_plan como lista.")
+        raise ValueError("La respuesta del proveedor no contiene visual_plan como lista.")
 
     visual_plan = normalize_visual_plan(raw_plan, payload["scenes"])
     validate_scene_count(visual_plan, len(payload["scenes"]))

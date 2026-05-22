@@ -2,24 +2,27 @@
 
 ## Tarea actual
 
-Implementar Fase 5A: panel interactivo local con Streamlit para revisar y seleccionar clips.
+Issue #5 — Hacer configurable el proveedor de IA vía `.env`.
 
 ## Objetivo
 
-Crear una interfaz local en Python que lea `data/scored_results.json`, muestre los clips sugeridos por escena, permita seleccionar manualmente los clips más interesantes y guarde la selección en `data/selected_assets.json`.
+Desacoplar `ai/visual_classifier.py` de Ollama. El proveedor de IA se
+elige en tiempo de ejecución leyendo `AI_PROVIDER` de `.env`. Añadir un
+nuevo proveedor debe ser cuestión de añadir un archivo y registrarlo,
+sin tocar el clasificador ni el pipeline.
 
-Esta fase NO debe descargar clips ni generar ZIP.
+Este issue **solo arma la abstracción**. Ollama queda como único
+proveedor funcional. Gemini y OpenAI son fuera de alcance (issues
+separados).
 
 ## Contexto del proyecto
-
-El proyecto es un sistema de B-roll automático para videos cortos.
 
 Flujo actual:
 
 script.md
 → parser
 → data/scenes.json
-→ clasificador visual
+→ clasificador visual (Ollama hardcodeado — eso cambia aquí)
 → data/visual_plan.json
 → búsqueda Pexels
 → data/pexels_results.json
@@ -29,100 +32,55 @@ script.md
 → selección manual
 → data/selected_assets.json
 
-## Entrada esperada
-
-Archivo:
-
-`data/scored_results.json`
-
-Cada sugerencia puede tener:
-
-- provider
-- provider_id
-- page_url
-- thumbnail_url
-- preview_url
-- duration
-- width
-- height
-- orientation
-- author_name
-- author_url
-- score
-- score_breakdown
-
-## Salida esperada
-
-Crear o actualizar:
-
-`data/selected_assets.json`
-
-Estructura esperada:
-
-```json
-{
-  "project_title": "El Fin del Excel para Cobrar",
-  "selected_assets": [
-    {
-      "scene": 1,
-      "asset_type": "mixed",
-      "visual_intent": "Persona frustrada usando celular por problemas de cobranza.",
-      "query": "frustrated businessman using phone messaging app",
-      "selected_clip": {
-        "provider": "pexels",
-        "provider_id": "123456",
-        "page_url": "https://...",
-        "preview_url": "https://...",
-        "thumbnail_url": "https://...",
-        "duration": 8,
-        "width": 1080,
-        "height": 1920,
-        "orientation": "vertical",
-        "author_name": "Autor",
-        "score": 95,
-        "score_breakdown": {}
-      }
-    }
-  ]
-}
-```
-
 ## Requisitos funcionales
 
-- Crear panel local con Streamlit.
-- Leer data/scored_results.json.
-- Mostrar escenas y clips sugeridos.
-- Permitir seleccionar clips con checkbox.
-- Guardar selección en data/selected_assets.json.
-- No descargar clips.
-- No generar ZIP.
-- No llamar a Pexels.
-- No llamar a Ollama.
-
-## Dependencias permitidas
-
-- streamlit
+- `get_provider()` lee `AI_PROVIDER` de `.env` y devuelve el proveedor.
+- Cada proveedor valida sus variables requeridas al construirse
+  (fail fast, mensaje claro, nunca loggear la key).
+- Error claro si `AI_PROVIDER` no está definido, es desconocido, o
+  apunta a un proveedor aún no implementado (gemini / openai).
+- `ai/visual_classifier.py` deja de importar Ollama directamente y
+  usa el registro de proveedores.
+- `.env.example` lista todas las keys soportadas con placeholders.
+- `DECISIONS.md` Decisión #4 reescrita con el contrato nuevo.
+- Tests con `monkeypatch` del entorno, sin llamadas reales a APIs.
 
 ## Archivos permitidos para modificar o crear
 
-- app.py
-- panel/streamlit_panel.py
-- selection/asset_selector.py
-- data/selected_assets.json
-- requirements.txt
-- README.md
-- tests/test_asset_selector.py
+- ai/visual_classifier.py
+- ai/ollama_provider.py
+- ai/provider_registry.py (nuevo)
+- ai/__init__.py
+- .env.example
+- DECISIONS.md
+- tests/test_provider_registry.py (nuevo)
+- CURRENT_TASK.md
+- CHANGELOG.md
 
 ## No tocar
 
 - parser/script_parser.py
-- tests/test_parser.py
-- ai/visual_classifier.py
-- ai/ollama_provider.py
 - providers/pexels_provider.py
 - scoring/video_scorer.py
+- panel/streamlit_panel.py
+- panel/results_panel.py
+- selection/asset_selector.py
+- app.py
+- main.py
 - script.md
+- requirements.txt
+- data/*.json
+
+## Fuera de alcance
+
+- Implementar el proveedor Gemini (issue separado, depende de este).
+- Implementar el proveedor OpenAI.
+- Scoring multimodal de thumbnails.
+- Cambiar el comportamiento del clasificador (mismos prompts, mismos
+  outputs).
 
 ## Comando esperado
 
-streamlit run app.py
+python3 main.py classify
+
+Debe seguir funcionando exactamente igual con `AI_PROVIDER=ollama`.
