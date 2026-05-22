@@ -78,15 +78,49 @@ Puntaje:
 - -40 si dura demasiado
 - -50 si tiene logos, marcas o texto visible
 
-## Fase 5: Panel
+## Fase 5A: Panel interactivo con Streamlit y selección manual
 
-Mostrar:
+Entrada:
 
-- escenas
-- tipo visual
-- query
-- thumbnails
-- preview_url
-- score
-- botón seleccionar
-- botón rebuscar
+- data/scored_results.json
+
+Salida:
+
+- data/selected_assets.json
+
+Debe permitir:
+
+- ver escenas
+- ver intención visual
+- ver query
+- ver thumbnails
+- abrir preview_url
+- abrir page_url
+- revisar score
+- revisar score_breakdown
+- seleccionar clips mediante checkbox o botón
+- guardar selección en selected_assets.json
+
+No descarga clips todavía.
+
+## Fase 5B: Descarga de seleccionados y ZIP
+
+Entrada:
+
+- data/selected_assets.json
+
+Salida:
+
+- exports/selected_broll.zip
+
+Debe permitir:
+
+- leer clips seleccionados
+- descargar únicamente los clips seleccionados
+- guardar archivos temporales ordenados por escena
+- generar ZIP final
+- incluir selected_assets.json dentro del ZIP
+- opcionalmente incluir editor_notes.md
+
+No descarga clips no seleccionados.
+No vuelve a llamar a Pexels.

@@ -31,9 +31,31 @@ El sistema debe permitir usar Ollama local, pero dejar abierta la opción de Ope
 
 ## Decisión 5: Descarga de clips
 
-Por ahora no descargamos clips.
-Solo guardamos:
+Durante las fases de búsqueda y scoring no se descargan clips automáticamente.
+
+Hasta la Fase 4 solo se guardan:
 
 - page_url
 - preview_url
 - thumbnail_url
+- metadata técnica
+- score
+- score_breakdown
+
+Motivo:
+Evitar descargas innecesarias y mantener el flujo rápido mientras se revisan resultados.
+
+## Decisión 6: Exportación manual de clips seleccionados
+
+A partir de la Fase 5B sí se permite descargar clips, pero únicamente cuando hayan sido seleccionados manualmente desde el panel.
+
+Reglas:
+
+- No se descargan todos los clips de Pexels.
+- No se descargan clips automáticamente durante la búsqueda.
+- Solo se descargan clips presentes en `data/selected_assets.json`.
+- La descarga se hace desde `preview_url`.
+- Los clips seleccionados se empaquetan en un ZIP local para usarlos en edición.
+
+Motivo:
+El objetivo práctico del MVP es revisar previews, seleccionar los clips útiles y tenerlos listos en un ZIP para Premiere, CapCut o DaVinci.

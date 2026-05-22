@@ -2,49 +2,116 @@
 
 ## Tarea actual
 
-Implementar panel simple de resultados.
+Implementar Fase 5A: panel interactivo local con Streamlit para revisar y seleccionar clips.
 
 ## Objetivo
 
-Leer `data/scored_results.json` y generar una vista simple para revisar las sugerencias puntuadas de B-roll.
+Crear una interfaz local en Python que lea `data/scored_results.json`, muestre los clips sugeridos por escena, permita seleccionar manualmente los clips más interesantes y guarde la selección en `data/selected_assets.json`.
 
-El panel debe permitir inspeccionar:
+Esta fase NO debe descargar clips ni generar ZIP.
 
-- escena
-- tipo visual
-- intención visual
-- query
-- thumbnails
-- preview_url
+## Contexto del proyecto
+
+El proyecto es un sistema de B-roll automático para videos cortos.
+
+Flujo actual:
+
+script.md
+→ parser
+→ data/scenes.json
+→ clasificador visual
+→ data/visual_plan.json
+→ búsqueda Pexels
+→ data/pexels_results.json
+→ scoring
+→ data/scored_results.json
+→ panel Streamlit
+→ selección manual
+→ data/selected_assets.json
+
+## Entrada esperada
+
+Archivo:
+
+`data/scored_results.json`
+
+Cada sugerencia puede tener:
+
+- provider
+- provider_id
 - page_url
+- thumbnail_url
+- preview_url
+- duration
+- width
+- height
+- orientation
+- author_name
+- author_url
 - score
 - score_breakdown
 
-## Alcance
+## Salida esperada
 
-Esta fase es un panel simple de revisión, no un producto final.
+Crear o actualizar:
 
-Debe funcionar primero en terminal y puede generar un HTML estático local para visualizar mejor los thumbnails.
+`data/selected_assets.json`
 
-## Reglas de implementación
+Estructura esperada:
 
-- No descargar videos.
-- No montar videos.
-- No implementar login.
-- No implementar pagos.
-- No implementar base de datos.
+```json
+{
+  "project_title": "El Fin del Excel para Cobrar",
+  "selected_assets": [
+    {
+      "scene": 1,
+      "asset_type": "mixed",
+      "visual_intent": "Persona frustrada usando celular por problemas de cobranza.",
+      "query": "frustrated businessman using phone messaging app",
+      "selected_clip": {
+        "provider": "pexels",
+        "provider_id": "123456",
+        "page_url": "https://...",
+        "preview_url": "https://...",
+        "thumbnail_url": "https://...",
+        "duration": 8,
+        "width": 1080,
+        "height": 1920,
+        "orientation": "vertical",
+        "author_name": "Autor",
+        "score": 95,
+        "score_breakdown": {}
+      }
+    }
+  ]
+}
+```
+
+## Requisitos funcionales
+
+- Crear panel local con Streamlit.
+- Leer data/scored_results.json.
+- Mostrar escenas y clips sugeridos.
+- Permitir seleccionar clips con checkbox.
+- Guardar selección en data/selected_assets.json.
+- No descargar clips.
+- No generar ZIP.
 - No llamar a Pexels.
 - No llamar a Ollama.
-- No modificar parser, clasificador, búsqueda Pexels ni scoring.
-- No agregar dependencias nuevas.
-- Mantener HTML/CSS simple si se genera un archivo HTML.
 
-## Archivos permitidos para modificar
+## Dependencias permitidas
 
-- panel/results_panel.py
-- main.py
-- output/results_panel.html
-- tests/test_results_panel.py
+- streamlit
+
+## Archivos permitidos para modificar o crear
+
+- app.py
+- panel/streamlit_panel.py
+- selection/asset_selector.py
+- data/selected_assets.json
+- requirements.txt
+- README.md
+- tests/test_asset_selector.py
 
 ## No tocar
 
@@ -52,51 +119,10 @@ Debe funcionar primero en terminal y puede generar un HTML estático local para 
 - tests/test_parser.py
 - ai/visual_classifier.py
 - ai/ollama_provider.py
-- tests/test_classifier.py
 - providers/pexels_provider.py
-- tests/test_pexels_provider.py
 - scoring/video_scorer.py
-- tests/test_video_scorer.py
 - script.md
 
-## Criterio de éxito
+## Comando esperado
 
-Ejecutar:
-
-python3 main.py panel
-
-Debe leer:
-
-data/scored_results.json
-
-Y generar:
-
-output/results_panel.html
-
-La terminal debe mostrar algo como:
-
-Panel generado: output/results_panel.html
-Escenas: 1
-Sugerencias: 5
-
-## Requisitos del HTML
-
-El HTML debe mostrar por sugerencia:
-
-- escena
-- tipo visual
-- intención visual
-- query
-- thumbnail
-- score
-- orientation
-- duration
-- resolution
-- author_name
-- link a page_url
-- link a preview_url
-
-## Nota
-
-Los botones `seleccionar` y `rebuscar` pueden quedar como botones visuales deshabilitados o placeholders.
-No implementar interacción real todavía.
+streamlit run app.py
