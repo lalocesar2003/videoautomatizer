@@ -1,49 +1,23 @@
-# AI_CONTEXT.md
-
-Estoy construyendo un sistema de B-roll automático para videos cortos.
-
-El sistema recibe un guion técnico en texto humano, lo parsea, clasifica cada escena visualmente y busca clips de stock solo cuando corresponde.
-
-## Flujo principal
-
-script.md
-→ parser/script_parser.py
-→ data/scenes.json
-→ ai/visual_classifier.py
-→ data/visual_plan.json
-→ providers/pexels_provider.py
-→ data/pexels_results.json
-→ scoring/video_scorer.py
-→ panel de resultados
-
-## Tipos visuales permitidos
-
-- self_recorded: el creador sale en cámara.
-- screen_recording: se graba pantalla, dashboard, Excel, WhatsApp, interfaz o demo.
-- stock: se necesita clip externo.
-- mixed: combina grabación propia/pantalla con apoyo de stock.
-
-## Regla clave
-
-Solo buscar en Pexels cuando:
-
-- asset_type = stock
-- asset_type = mixed
-
-No buscar en Pexels cuando:
-
-- asset_type = self_recorded
-- asset_type = screen_recording
-
 ## Prioridad actual
 
-Construir primero parser + clasificador + búsqueda Pexels + scoring en terminal.
+Construir el MVP completo en Python.
+
+El MVP debe permitir:
+
+1. Parsear el guion.
+2. Clasificar escenas.
+3. Buscar clips en Pexels.
+4. Puntuar clips.
+5. Abrir un panel local con Streamlit.
+6. Ver previews de clips por escena.
+7. Seleccionar clips manualmente.
+8. Generar un ZIP con los clips seleccionados.
 
 No construir todavía:
 
+- Next.js
 - login
 - pagos
-- descarga automática
-- montaje de video
-- base de datos compleja
-- panel avanzado
+- base de datos
+- montaje automático
+- video IA
