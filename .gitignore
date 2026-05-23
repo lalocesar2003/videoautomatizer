@@ -6,6 +6,10 @@ __pycache__/
 
 data/*.json
 
+# Inputs y outputs locales de la fase `generate` (no se versionan)
+brief.md
+script.generated.md
+
 comoactivar.md
 taskresult.md
 

@@ -88,6 +88,31 @@ python3 main.py search      # → pexels_results.json (necesita PEXELS_API_KEY)
 python3 main.py score       # → scored_results.json
 ```
 
+### Opcional: generar `script.md` con IA
+
+Si no quieres escribir el guion a mano, puedes generarlo a partir de un
+brief corto:
+
+```bash
+cp brief.md.example brief.md
+# edita brief.md con tu tema, tono, audiencia, CTA
+python3 main.py generate    # → script.generated.md
+```
+
+Revísalo. Si te convence, renómbralo a `script.md` (o reemplaza el
+existente) y continúa con `parse`.
+
+Notas:
+
+- Usa el proveedor de IA configurado en `AI_PROVIDER` (hoy solo `ollama`).
+- Modelos chicos como `llama3.2:3b` tienden a copiar el ejemplo del
+  prompt. Para guiones de calidad real, conviene un modelo más grande
+  (`llama3.1:8b` o superior) o un proveedor externo cuando esté
+  implementado.
+- El guion generado se valida automáticamente con `parse_script()`. Si
+  el formato falla, se reintenta 2 veces más antes de fallar con un
+  archivo de debug en `data/last_failed_script.md`.
+
 O el pipeline completo en CLI:
 
 ```bash
