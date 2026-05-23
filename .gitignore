@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 
 data/*.json
+data/*.md
 
 # Inputs y outputs locales de la fase `generate` (no se versionan)
 brief.md
