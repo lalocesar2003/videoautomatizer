@@ -2,91 +2,174 @@
 
 ## Tarea actual
 
-Issue #7 — Generar `script.md` automáticamente desde un brief con IA.
+Issue #18 — Implementar Fase 8: exportar clips seleccionados a ZIP.
+
+Branch sugerida:
+
+```bash
+feature/18-export-selected-zip
+```
 
 ## Objetivo
 
-Añadir una fase nueva **antes** de `parse` que toma un `brief.md` (tema,
-duración, tono, audiencia, CTA) y produce `script.generated.md` con la
-estructura que el parser ya entiende (timestamps, secciones, líneas
-`• Visual:` / `• Texto en pantalla:` / `• Audio:`).
+Leer `data/selected_assets.json`, descargar únicamente los clips seleccionados usando `preview_url` y generar un ZIP local para edición.
 
-El proveedor de IA se elige vía `AI_PROVIDER` en `.env` (issue #5 ya
-desbloqueó esto). Solo Ollama está implementado; Gemini queda para un
-issue futuro.
+Esta fase convierte la selección manual hecha en Streamlit en archivos reales listos para usar en Premiere, CapCut, DaVinci u otro editor.
 
-## Contexto del proyecto
+## Entrada
 
-Flujo nuevo:
+Archivo:
 
-brief.md
-→ generate            ← fase nueva (este issue)
-→ script.generated.md
-→ (el usuario lo revisa, lo edita si quiere, y lo renombra a script.md)
-→ parser
-→ data/scenes.json
-→ clasificador visual
-→ ...
+```txt
+data/selected_assets.json
+```
 
-## Requisitos funcionales
+Estructura esperada:
 
-- Nuevo comando `python3 main.py generate` lee `brief.md` y escribe
-  `script.generated.md`. **No** sobrescribe `script.md` (lo hace el
-  usuario manualmente cuando aprueba el guion).
-- El brief usa formato markdown plano con pares `Clave: valor` (igual
-  estilo que el resto del proyecto). Campos esperados: tema, plataforma,
-  duración objetivo, tono, audiencia, CTA, notas. Solo "tema" es
-  obligatorio; el resto da contexto opcional.
-- El proveedor se obtiene con `get_provider()` del registro existente.
-- El prompt incluye few-shot con al menos un ejemplo de guion válido.
-- El output se valida pasándolo por `parse_script()`. Debe:
-  - tener al menos una escena,
-  - tener `project_title`,
-  - no devolver warnings en ninguna escena (todos los campos
-    requeridos presentes: start, end, visual, audio, text_on_screen).
-- Si la validación falla, reintentar hasta 2 veces más con feedback
-  del error al modelo. Si después de 3 intentos sigue mal, fallar
-  con un mensaje claro y guardar el último intento en
-  `data/last_failed_script.md` para debug.
-- Mensajes en español, código y nombres en inglés (convención del repo).
+```json
+{
+  "project_title": "El Fin del Excel para Cobrar",
+  "selected_assets": [
+    {
+      "scene": 1,
+      "asset_type": "mixed",
+      "visual_intent": "...",
+      "query": "...",
+      "selected_clip": {
+        "provider": "pexels",
+        "provider_id": "123456",
+        "page_url": "https://...",
+        "preview_url": "https://...",
+        "thumbnail_url": "https://...",
+        "duration": 8,
+        "width": 1080,
+        "height": 1920,
+        "orientation": "vertical",
+        "author_name": "Autor",
+        "score": 95,
+        "score_breakdown": {}
+      }
+    }
+  ]
+}
+```
+
+## Salidas
+
+Crear:
+
+```txt
+exports/clips/
+exports/selected_broll.zip
+```
+
+El ZIP debe incluir:
+
+- todos los clips seleccionados descargados;
+- una copia de `data/selected_assets.json`.
+
+## Reglas obligatorias
+
+- Descargar solo clips presentes en `data/selected_assets.json`.
+- No descargar clips no seleccionados.
+- Usar `preview_url` como fuente de descarga.
+- Nombrar archivos por escena.
+- Guardar clips descargados en `exports/clips/`.
+- Generar `exports/selected_broll.zip`.
+- Incluir copia de `selected_assets.json` dentro del ZIP.
+- No llamar a Pexels Search.
+- No llamar a Ollama/Gemini/OpenAI.
+- No modificar parser, clasificador, provider de Pexels, scoring ni panel Streamlit.
+- No recortar clips todavía.
+- Descargar clips seleccionados completos.
+- El recorte por duración de escena se hará en una fase posterior de render/preparación.
+
+## Ejemplo de nombres de archivos
+
+```txt
+scene_01_clip_01.mp4
+scene_02_clip_01.mp4
+scene_03_clip_01.mp4
+```
+
+Si una escena tiene más de un clip seleccionado:
+
+```txt
+scene_01_clip_01.mp4
+scene_01_clip_02.mp4
+```
 
 ## Archivos permitidos para modificar o crear
 
-- ai/script_generator.py (nuevo)
-- main.py (añadir comando `generate`)
-- brief.md.example (nuevo)
-- tests/test_script_generator.py (nuevo)
-- README.md
-- CURRENT_TASK.md
-- CHANGELOG.md
+- `downloaders/zip_downloader.py`
+- `main.py`
+- `exports/clips/`
+- `exports/selected_broll.zip`
+- `tests/test_zip_downloader.py`
+- `README.md`
+- `CURRENT_TASK.md`
+- `CHANGELOG.md`
 
 ## No tocar
 
-- parser/script_parser.py
-- ai/visual_classifier.py
-- ai/ollama_provider.py
-- ai/provider_registry.py
-- providers/pexels_provider.py
-- scoring/video_scorer.py
-- panel/*
-- selection/*
-- app.py
-- script.md (lo sigue editando el usuario; el sistema escribe a
-  script.generated.md aparte por seguridad)
-- .env.example (las vars necesarias ya están desde #5)
-- requirements.txt (no se añaden dependencias)
-- data/*.json
+- `parser/script_parser.py`
+- `tests/test_parser.py`
+- `ai/visual_classifier.py`
+- `ai/ollama_provider.py`
+- `ai/provider_registry.py`
+- `ai/script_generator.py`
+- `providers/pexels_provider.py`
+- `scoring/video_scorer.py`
+- `panel/*`
+- `selection/*`
+- `app.py`
+- `script.md`
+- `data/scenes.json`
+- `data/visual_plan.json`
+- `data/pexels_results.json`
+- `data/scored_results.json`
 
-## Fuera de alcance
+## Criterios de aceptación
 
-- Implementar Gemini de verdad (otro issue, ya planeado).
-- A/B testing de variantes de guion.
-- Generar imágenes o thumbnails.
-- Renombrar automáticamente `script.generated.md` a `script.md`.
+Ejecutar:
+
+```bash
+python3 main.py export
+```
+
+Debe:
+
+- leer `data/selected_assets.json`;
+- descargar solo clips seleccionados;
+- guardar los clips en `exports/clips/`;
+- nombrar los archivos por escena;
+- generar `exports/selected_broll.zip`;
+- incluir `selected_assets.json` dentro del ZIP;
+- no descargar clips no seleccionados;
+- no recortar clips;
+- no fallar si `exports/` todavía no existe;
+- mostrar mensajes claros en terminal.
+
+## Errores esperados
+
+Debe fallar con mensaje claro si:
+
+- no existe `data/selected_assets.json`;
+- `selected_assets` está vacío;
+- un clip seleccionado no tiene `preview_url`;
+- falla la descarga de un clip;
+- no se puede escribir en `exports/clips/` o `exports/selected_broll.zip`.
 
 ## Comando esperado
 
-python3 main.py generate
+```bash
+python3 main.py export
+```
 
-Lee `brief.md` y escribe `script.generated.md`. Si `brief.md` no existe,
-falla con un mensaje claro que recomiende usar `brief.md.example`.
+Salida esperada en terminal:
+
+```txt
+Exportación terminada
+Clips descargados: 3
+ZIP generado: exports/selected_broll.zip
+```
