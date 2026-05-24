@@ -22,6 +22,10 @@ VISUAL_PLAN_PATH = DATA_DIR / "visual_plan.json"
 PEXELS_RESULTS_PATH = DATA_DIR / "pexels_results.json"
 SCORED_RESULTS_PATH = DATA_DIR / "scored_results.json"
 PANEL_OUTPUT_PATH = Path("output") / "results_panel.html"
+SELECTED_ASSETS_PATH = DATA_DIR / "selected_assets.json"
+EXPORTS_DIR = Path("exports")
+EXPORT_CLIPS_DIR = EXPORTS_DIR / "clips"
+SELECTED_BROLL_ZIP_PATH = EXPORTS_DIR / "selected_broll.zip"
 
 
 def read_script() -> str:
@@ -195,6 +199,23 @@ def run_panel() -> dict:
     return summary
 
 
+def run_export() -> dict:
+    from downloaders.zip_downloader import export_selected_assets
+
+    summary = export_selected_assets(
+        selected_assets_path=SELECTED_ASSETS_PATH,
+        clips_dir=EXPORT_CLIPS_DIR,
+        zip_path=SELECTED_BROLL_ZIP_PATH,
+    )
+
+    print("\n✅ Exportación terminada")
+    print(f"Clips descargados: {summary['downloaded_count']}")
+    print(f"Carpeta de clips: {summary['clips_dir']}")
+    print(f"ZIP generado: {summary['zip_path']}")
+
+    return summary
+
+
 def run_all() -> None:
     print("\n🚀 Ejecutando flujo completo")
     run_parse()
@@ -205,12 +226,21 @@ def run_all() -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="B-roll system: parser + classifier + Pexels search + scoring + panel"
+        description="B-roll system: parser + classifier + Pexels search + scoring + panel + export"
     )
 
     parser.add_argument(
         "command",
-        choices=["generate", "parse", "classify", "search", "score", "panel", "all"],
+        choices=[
+            "generate",
+            "parse",
+            "classify",
+            "search",
+            "score",
+            "panel",
+            "export",
+            "all",
+        ],
         help=(
             "generate: brief.md → script.generated.md | "
             "parse: genera scenes.json | "
@@ -218,6 +248,7 @@ def main():
             "search: genera pexels_results.json | "
             "score: genera scored_results.json | "
             "panel: genera output/results_panel.html | "
+            "export: descarga selección y genera selected_broll.zip | "
             "all: ejecuta parse + classify + search + score"
         ),
     )
@@ -241,6 +272,9 @@ def main():
 
     if args.command == "panel":
         run_panel()
+
+    if args.command == "export":
+        run_export()
 
     if args.command == "all":
         run_all()
