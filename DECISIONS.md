@@ -510,3 +510,34 @@ Reglas:
 - Debe permitir selección automática por mayor score solo si el usuario lo confirma.
 - Debe permitir assets locales.
 - Debe generar placeholders si faltan escenas.
+
+## Decisión 21: Una escena solo puede tener un asset principal seleccionado
+
+Cada escena del guion debe tener como máximo un asset principal seleccionado para el render preliminar.
+
+Motivo:
+
+El timeline necesita saber qué recurso visual usará cada segmento. Si una escena tiene varios clips seleccionados, el render no sabrá cuál usar.
+
+Reglas:
+
+- Una escena puede tener 0 o 1 asset principal.
+- Si no tiene asset, se resolverá después como local, fallback_stock, placeholder o missing_asset.
+- El panel debe usar radio button o selectbox por escena.
+- `selected_assets.json` no debe tener dos assets principales para la misma escena.
+
+## Decisión 22: El panel debe mostrar todas las escenas
+
+El panel no debe mostrar solo escenas con clips de Pexels.
+
+Debe mostrar:
+
+- escenas con clips sugeridos
+- escenas sin clips sugeridos
+- escenas self_recorded
+- escenas screen_recording
+- escenas pendientes de acción manual
+
+Motivo:
+
+El usuario necesita revisar el video completo, no solo los segmentos que Pexels pudo resolver.

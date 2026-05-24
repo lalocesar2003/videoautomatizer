@@ -4,6 +4,13 @@
 
 Issue #18 — Implementar Fase 8: exportar clips seleccionados a ZIP.
 
+Incluye una estabilización mínima del Issue #17 porque el export depende de que
+`data/selected_assets.json` represente una selección válida:
+
+- el panel debe mostrar todas las escenas;
+- cada escena debe permitir máximo un asset seleccionado;
+- escenas `self_recorded` y `screen_recording` deben poder guardarse como tarea manual.
+
 Branch sugerida:
 
 ```bash
@@ -92,20 +99,21 @@ scene_02_clip_01.mp4
 scene_03_clip_01.mp4
 ```
 
-Si una escena tiene más de un clip seleccionado:
+Regla de selección esperada:
 
-```txt
-scene_01_clip_01.mp4
-scene_01_clip_02.mp4
-```
+- En el flujo nuevo del panel, una escena debe tener máximo un asset seleccionado.
+- El exportador puede tolerar archivos legacy con más de un clip por escena, pero el panel ya no debe generarlos.
 
 ## Archivos permitidos para modificar o crear
 
 - `downloaders/zip_downloader.py`
 - `main.py`
+- `panel/streamlit_panel.py`
+- `selection/asset_selector.py`
 - `exports/clips/`
 - `exports/selected_broll.zip`
 - `tests/test_zip_downloader.py`
+- `tests/test_asset_selector.py`
 - `README.md`
 - `CURRENT_TASK.md`
 - `CHANGELOG.md`
@@ -120,8 +128,6 @@ scene_01_clip_02.mp4
 - `ai/script_generator.py`
 - `providers/pexels_provider.py`
 - `scoring/video_scorer.py`
-- `panel/*`
-- `selection/*`
 - `app.py`
 - `script.md`
 - `data/scenes.json`

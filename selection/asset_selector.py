@@ -47,6 +47,94 @@ def build_selected_assets(
     }
 
 
+def build_selected_assets_from_scene_choices(
+    *,
+    project_title: str,
+    scenes: list[dict[str, Any]],
+    visual_plan_by_scene: dict[int, dict[str, Any]],
+    scored_results_by_scene: dict[int, dict[str, Any]],
+    choices_by_scene: dict[int, str],
+) -> dict[str, Any]:
+    selected_assets = []
+
+    for scene in scenes:
+        scene_number = int_or_zero(scene.get("scene"))
+        choice = clean_string(choices_by_scene.get(scene_number))
+
+        if not choice:
+            continue
+
+        visual_plan = visual_plan_by_scene.get(scene_number, {})
+        scored_scene = scored_results_by_scene.get(scene_number, {})
+
+        if choice == "manual_task":
+            selected_assets.append(
+                build_manual_task_selection(scene, visual_plan)
+            )
+            continue
+
+        suggestion = find_suggestion_by_provider_id(scored_scene, choice)
+
+        if suggestion:
+            selected_assets.append(
+                {
+                    "scene": scene_number,
+                    "asset_type": visual_plan.get("asset_type") or scored_scene.get("asset_type"),
+                    "selection_type": "pexels",
+                    "visual_intent": visual_plan.get("visual_intent") or scored_scene.get("visual_intent"),
+                    "query": scored_scene.get("query") or visual_plan.get("search_query_en", ""),
+                    "selected_clip": build_selected_clip(suggestion),
+                }
+            )
+
+    return {
+        "project_title": project_title or "Proyecto sin título",
+        "selected_assets": selected_assets,
+    }
+
+
+def build_manual_task_selection(
+    scene: dict[str, Any],
+    visual_plan: dict[str, Any],
+) -> dict[str, Any]:
+    asset_type = clean_string(visual_plan.get("asset_type")) or "manual"
+    task_type = get_manual_task_type(asset_type)
+
+    return {
+        "scene": scene.get("scene"),
+        "asset_type": asset_type,
+        "selection_type": "manual_task",
+        "visual_intent": visual_plan.get("visual_intent", ""),
+        "query": visual_plan.get("search_query_en", ""),
+        "manual_task": {
+            "task_type": task_type,
+            "primary_action": visual_plan.get("primary_action") or scene.get("visual", ""),
+            "status": "pending",
+        },
+    }
+
+
+def get_manual_task_type(asset_type: str) -> str:
+    if asset_type == "self_recorded":
+        return "self_recording"
+
+    if asset_type == "screen_recording":
+        return "screen_recording"
+
+    return "manual_review"
+
+
+def find_suggestion_by_provider_id(
+    scored_scene: dict[str, Any],
+    provider_id: str,
+) -> dict[str, Any] | None:
+    for suggestion in scored_scene.get("suggestions", []):
+        if clean_string(suggestion.get("provider_id")) == provider_id:
+            return suggestion
+
+    return None
+
+
 def build_selected_clip(suggestion: dict[str, Any]) -> dict[str, Any]:
     return {
         "provider": suggestion.get("provider"),
@@ -77,6 +165,26 @@ def get_selected_provider_ids(selected_assets: dict[str, Any]) -> set[str]:
     return provider_ids
 
 
+def get_choices_by_scene(selected_assets: dict[str, Any]) -> dict[int, str]:
+    choices = {}
+
+    for item in selected_assets.get("selected_assets", []):
+        scene_number = int_or_zero(item.get("scene"))
+        selection_type = clean_string(item.get("selection_type"))
+
+        if selection_type == "manual_task":
+            choices[scene_number] = "manual_task"
+            continue
+
+        selected_clip = item.get("selected_clip", {})
+        provider_id = clean_string(selected_clip.get("provider_id"))
+
+        if provider_id:
+            choices[scene_number] = provider_id
+
+    return choices
+
+
 def count_suggestions(scored_results: dict[str, Any]) -> int:
     return sum(
         len(scene.get("suggestions", []))
@@ -89,3 +197,10 @@ def clean_string(value: Any) -> str:
         return ""
 
     return str(value).strip()
+
+
+def int_or_zero(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
