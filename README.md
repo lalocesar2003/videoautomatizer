@@ -18,6 +18,7 @@ script.md
   → resolve   → data/resolved_assets.json
   → timeline  → data/timeline.json
   → missing   → data/missing_scenes.json
+  → placeholders → exports/placeholders/
   → export    → exports/selected_broll.zip
 ```
 
@@ -273,6 +274,28 @@ marcadas como listas cuyo `clip_path` no existe localmente.
 
 Esta fase no descarga clips, no crea placeholders, no modifica el timeline y no
 renderiza video.
+
+## Generar placeholders
+
+Los placeholders son clips simples para que el render preliminar no se rompa
+cuando falte una escena o un archivo todavía no exista localmente.
+
+```bash
+python3 main.py placeholders
+```
+
+Entrada:
+
+- `data/missing_scenes.json`
+- `data/timeline.json`
+
+Salida:
+
+- `exports/placeholders/`
+- `exports/placeholders/placeholder_manifest.json`
+
+Requiere `ffmpeg` instalado. Esta fase no descarga clips, no modifica el
+timeline, no recorta assets reales y no renderiza el video final.
 
 ## Reglas de scoring
 
