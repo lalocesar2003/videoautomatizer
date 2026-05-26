@@ -16,6 +16,7 @@ script.md
   → score     → data/scored_results.json
   → panel     → data/selected_assets.json
   → resolve   → data/resolved_assets.json
+  → timeline  → data/timeline.json
   → export    → exports/selected_broll.zip
 ```
 
@@ -224,6 +225,29 @@ decisión por escena sin crear UI nueva todavía:
 
 Esta fase no llama a Pexels, no llama a IA, no descarga clips y no renderiza
 video.
+
+## Generar timeline
+
+El timeline ordena las escenas por tiempo, calcula duración por segmento y
+vincula cada escena con su asset resuelto o estado pendiente.
+
+```bash
+python3 main.py timeline
+```
+
+Entrada:
+
+- `data/scenes.json`
+- `data/visual_plan.json`
+- `data/resolved_assets.json`
+
+Salida:
+
+- `data/timeline.json`
+
+Esta fase no descarga clips, no copia archivos, no crea placeholders, no
+recorta clips y no renderiza video. Solo deja el mapa temporal listo para las
+siguientes fases.
 
 ## Reglas de scoring
 
