@@ -2,11 +2,15 @@ from pathlib import Path
 from typing import Any
 
 from selection.asset_selector import (
+    LOCAL_ASSET_CHOICE,
+    SUPPORTED_VIDEO_EXTENSIONS,
     build_selected_assets_from_scene_choices,
     count_suggestions,
     get_choices_by_scene,
+    get_local_assets_by_scene,
     load_json,
     save_selected_assets,
+    save_uploaded_local_asset,
 )
 
 
@@ -14,6 +18,7 @@ SCENES_PATH = Path("data/scenes.json")
 VISUAL_PLAN_PATH = Path("data/visual_plan.json")
 SCORED_RESULTS_PATH = Path("data/scored_results.json")
 SELECTED_ASSETS_PATH = Path("data/selected_assets.json")
+LOCAL_ASSETS_DIR = Path("local_assets")
 
 
 def run_streamlit_panel(
@@ -38,6 +43,7 @@ def run_streamlit_panel(
     scored_results = load_json(scored_results_path)
     previous_selection = load_previous_selection(selected_assets_path)
     previous_choices = get_choices_by_scene(previous_selection)
+    previous_local_assets = get_local_assets_by_scene(previous_selection)
 
     scenes = scenes_data.get("scenes", [])
     visual_plan_by_scene = index_by_scene(visual_plan_data.get("visual_plan", []))
@@ -47,22 +53,34 @@ def run_streamlit_panel(
     st.write(f"**Escenas:** {len(scenes)}")
     st.write(f"**Sugerencias:** {count_suggestions(scored_results)}")
 
-    choices_by_scene = render_scenes(
+    choices_by_scene, local_uploads_by_scene = render_scenes(
         scenes=scenes,
         visual_plan_by_scene=visual_plan_by_scene,
         scored_results_by_scene=scored_results_by_scene,
         previous_choices=previous_choices,
+        previous_local_assets=previous_local_assets,
         st=st,
     )
 
     if st.button("Guardar selección", type="primary"):
-        selected_assets = build_selected_assets_from_scene_choices(
-            project_title=scored_results.get("project_title", "Proyecto sin título"),
-            scenes=scenes,
-            visual_plan_by_scene=visual_plan_by_scene,
-            scored_results_by_scene=scored_results_by_scene,
-            choices_by_scene=choices_by_scene,
-        )
+        try:
+            local_assets_by_scene = prepare_local_assets_for_selection(
+                choices_by_scene=choices_by_scene,
+                local_uploads_by_scene=local_uploads_by_scene,
+                previous_local_assets=previous_local_assets,
+            )
+            selected_assets = build_selected_assets_from_scene_choices(
+                project_title=scored_results.get("project_title", "Proyecto sin título"),
+                scenes=scenes,
+                visual_plan_by_scene=visual_plan_by_scene,
+                scored_results_by_scene=scored_results_by_scene,
+                choices_by_scene=choices_by_scene,
+                local_assets_by_scene=local_assets_by_scene,
+            )
+        except ValueError as error:
+            st.error(str(error))
+            return
+
         save_selected_assets(selected_assets_path, selected_assets)
         st.success(
             f"Selección guardada en {selected_assets_path} "
@@ -79,9 +97,11 @@ def render_scenes(
     visual_plan_by_scene: dict[int, dict[str, Any]],
     scored_results_by_scene: dict[int, dict[str, Any]],
     previous_choices: dict[int, str],
+    previous_local_assets: dict[int, dict[str, Any]],
     st,
-) -> dict[int, str]:
+) -> tuple[dict[int, str], dict[int, Any]]:
     choices_by_scene = {}
+    local_uploads_by_scene = {}
 
     for scene in scenes:
         scene_number = int(scene.get("scene", 0))
@@ -115,9 +135,16 @@ def render_scenes(
             if choice:
                 choices_by_scene[scene_number] = choice
 
+            if choice == LOCAL_ASSET_CHOICE:
+                local_uploads_by_scene[scene_number] = render_local_asset_uploader(
+                    scene_number=scene_number,
+                    previous_local_asset=previous_local_assets.get(scene_number, {}),
+                    st=st,
+                )
+
             render_scene_details(asset_type, visual_plan, suggestions, st)
 
-    return choices_by_scene
+    return choices_by_scene, local_uploads_by_scene
 
 
 def build_scene_options(asset_type: str, suggestions: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -125,6 +152,8 @@ def build_scene_options(asset_type: str, suggestions: list[dict[str, Any]]) -> l
 
     if asset_type in {"self_recorded", "screen_recording"} or not suggestions:
         options.append({"value": "manual_task", "label": "Tarea manual / pendiente"})
+
+    options.append({"value": LOCAL_ASSET_CHOICE, "label": "Asset local / video propio"})
 
     for index, suggestion in enumerate(suggestions, start=1):
         provider_id = str(suggestion.get("provider_id", ""))
@@ -155,6 +184,61 @@ def get_option_label(options: list[dict[str, str]], value: str) -> str:
             return option["label"]
 
     return value
+
+
+def render_local_asset_uploader(
+    *,
+    scene_number: int,
+    previous_local_asset: dict[str, Any],
+    st,
+) -> Any:
+    if previous_local_asset:
+        st.success(
+            "Asset local actual: "
+            f"`{previous_local_asset.get('local_path', '')}`"
+        )
+
+    return st.file_uploader(
+        "Sube o reemplaza el video local para esta escena",
+        type=get_supported_upload_types(),
+        key=f"scene_{scene_number}_local_asset",
+    )
+
+
+def prepare_local_assets_for_selection(
+    *,
+    choices_by_scene: dict[int, str],
+    local_uploads_by_scene: dict[int, Any],
+    previous_local_assets: dict[int, dict[str, Any]],
+) -> dict[int, dict[str, Any]]:
+    local_assets = {}
+
+    for scene_number, choice in choices_by_scene.items():
+        if choice != LOCAL_ASSET_CHOICE:
+            continue
+
+        uploaded_file = local_uploads_by_scene.get(scene_number)
+
+        if uploaded_file is not None:
+            local_assets[scene_number] = save_uploaded_local_asset(
+                local_assets_dir=LOCAL_ASSETS_DIR,
+                scene_number=scene_number,
+                original_filename=uploaded_file.name,
+                content=uploaded_file.getvalue(),
+            )
+            continue
+
+        if scene_number in previous_local_assets:
+            local_assets[scene_number] = previous_local_assets[scene_number]
+            continue
+
+        local_assets[scene_number] = {}
+
+    return local_assets
+
+
+def get_supported_upload_types() -> list[str]:
+    return sorted(extension.removeprefix(".") for extension in SUPPORTED_VIDEO_EXTENSIONS)
 
 
 def render_scene_details(

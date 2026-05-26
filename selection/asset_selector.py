@@ -1,6 +1,11 @@
 import json
+import re
 from pathlib import Path
 from typing import Any
+
+
+LOCAL_ASSET_CHOICE = "local_asset"
+SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".m4v"}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -54,8 +59,10 @@ def build_selected_assets_from_scene_choices(
     visual_plan_by_scene: dict[int, dict[str, Any]],
     scored_results_by_scene: dict[int, dict[str, Any]],
     choices_by_scene: dict[int, str],
+    local_assets_by_scene: dict[int, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     selected_assets = []
+    local_assets_by_scene = local_assets_by_scene or {}
 
     for scene in scenes:
         scene_number = int_or_zero(scene.get("scene"))
@@ -70,6 +77,16 @@ def build_selected_assets_from_scene_choices(
         if choice == "manual_task":
             selected_assets.append(
                 build_manual_task_selection(scene, visual_plan)
+            )
+            continue
+
+        if choice == LOCAL_ASSET_CHOICE:
+            selected_assets.append(
+                build_local_asset_selection(
+                    scene=scene,
+                    visual_plan=visual_plan,
+                    local_asset=local_assets_by_scene.get(scene_number, {}),
+                )
             )
             continue
 
@@ -90,6 +107,38 @@ def build_selected_assets_from_scene_choices(
     return {
         "project_title": project_title or "Proyecto sin título",
         "selected_assets": selected_assets,
+    }
+
+
+def build_local_asset_selection(
+    *,
+    scene: dict[str, Any],
+    visual_plan: dict[str, Any],
+    local_asset: dict[str, Any],
+) -> dict[str, Any]:
+    scene_number = int_or_zero(scene.get("scene"))
+    local_path = clean_string(local_asset.get("local_path"))
+
+    if not local_path:
+        raise ValueError(
+            f"La escena {scene_number} está marcada como asset local, "
+            "pero no tiene archivo local asignado."
+        )
+
+    validate_video_extension(Path(local_path).suffix)
+    asset_type = clean_string(visual_plan.get("asset_type")) or "local"
+
+    return {
+        "scene": scene_number,
+        "asset_type": asset_type,
+        "selection_type": "local",
+        "visual_intent": visual_plan.get("visual_intent", ""),
+        "query": visual_plan.get("search_query_en", ""),
+        "selected_clip": {
+            "provider": "local",
+            "local_path": local_path,
+            "original_filename": clean_string(local_asset.get("original_filename")),
+        },
     }
 
 
@@ -165,24 +214,88 @@ def get_selected_provider_ids(selected_assets: dict[str, Any]) -> set[str]:
     return provider_ids
 
 
+def get_local_assets_by_scene(selected_assets: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    local_assets = {}
+
+    for item in selected_assets.get("selected_assets", []):
+        scene_number = int_or_zero(item.get("scene"))
+        selection_type = clean_string(item.get("selection_type"))
+        selected_clip = item.get("selected_clip", {})
+        provider = clean_string(selected_clip.get("provider"))
+
+        if selection_type == "local" or provider == "local":
+            local_assets[scene_number] = selected_clip
+
+    return local_assets
+
+
 def get_choices_by_scene(selected_assets: dict[str, Any]) -> dict[int, str]:
     choices = {}
 
     for item in selected_assets.get("selected_assets", []):
         scene_number = int_or_zero(item.get("scene"))
         selection_type = clean_string(item.get("selection_type"))
+        selected_clip = item.get("selected_clip", {})
+        provider = clean_string(selected_clip.get("provider"))
+
+        if selection_type == "local" or provider == "local":
+            choices[scene_number] = LOCAL_ASSET_CHOICE
+            continue
 
         if selection_type == "manual_task":
             choices[scene_number] = "manual_task"
             continue
 
-        selected_clip = item.get("selected_clip", {})
         provider_id = clean_string(selected_clip.get("provider_id"))
 
         if provider_id:
             choices[scene_number] = provider_id
 
     return choices
+
+
+def save_uploaded_local_asset(
+    *,
+    local_assets_dir: Path,
+    scene_number: int,
+    original_filename: str,
+    content: bytes,
+) -> dict[str, str]:
+    filename = build_local_asset_filename(scene_number, original_filename)
+    output_path = local_assets_dir / filename
+
+    local_assets_dir.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(content)
+
+    return {
+        "local_path": str(output_path),
+        "original_filename": Path(original_filename).name,
+    }
+
+
+def build_local_asset_filename(scene_number: int, original_filename: str) -> str:
+    original_path = Path(clean_string(original_filename)).name
+    suffix = Path(original_path).suffix.lower()
+    validate_video_extension(suffix)
+
+    stem = sanitize_filename_stem(Path(original_path).stem)
+    return f"scene_{scene_number:02d}_{stem}{suffix}"
+
+
+def sanitize_filename_stem(value: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "_", clean_string(value)).strip("_")
+    return cleaned or "asset"
+
+
+def validate_video_extension(extension: str) -> None:
+    normalized_extension = clean_string(extension).lower()
+
+    if normalized_extension not in SUPPORTED_VIDEO_EXTENSIONS:
+        supported = ", ".join(sorted(SUPPORTED_VIDEO_EXTENSIONS))
+        raise ValueError(
+            f"Extensión de video no soportada: {normalized_extension or '(vacía)'}. "
+            f"Usa una de estas: {supported}."
+        )
 
 
 def count_suggestions(scored_results: dict[str, Any]) -> int:

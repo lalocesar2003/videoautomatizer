@@ -209,7 +209,7 @@ def run_export() -> dict:
     )
 
     print("\n✅ Exportación terminada")
-    print(f"Clips descargados: {summary['downloaded_count']}")
+    print(f"Clips exportados: {summary['downloaded_count']}")
     print(f"Carpeta de clips: {summary['clips_dir']}")
     print(f"ZIP generado: {summary['zip_path']}")
 
