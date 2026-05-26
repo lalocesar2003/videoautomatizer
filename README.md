@@ -17,6 +17,7 @@ script.md
   → panel     → data/selected_assets.json
   → resolve   → data/resolved_assets.json
   → timeline  → data/timeline.json
+  → missing   → data/missing_scenes.json
   → export    → exports/selected_broll.zip
 ```
 
@@ -248,6 +249,30 @@ Salida:
 Esta fase no descarga clips, no copia archivos, no crea placeholders, no
 recorta clips y no renderiza video. Solo deja el mapa temporal listo para las
 siguientes fases.
+
+## Detectar escenas faltantes
+
+El reporte de faltantes audita `data/timeline.json` y muestra qué escenas no
+están listas para render automático.
+
+```bash
+python3 main.py missing
+```
+
+Entrada:
+
+- `data/timeline.json`
+
+Salida:
+
+- `data/missing_scenes.json`
+
+Detecta escenas pendientes (`needs_self_recording`, `needs_screen_recording`,
+`needs_manual_review`, `needs_fallback_search`, `missing_asset`) y escenas
+marcadas como listas cuyo `clip_path` no existe localmente.
+
+Esta fase no descarga clips, no crea placeholders, no modifica el timeline y no
+renderiza video.
 
 ## Reglas de scoring
 
