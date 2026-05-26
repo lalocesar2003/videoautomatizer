@@ -2,55 +2,40 @@
 
 ## Tarea actual
 
-Issue #21 — Generar `timeline.json` usando assets resueltos.
+Issue #22 — Detectar escenas faltantes o pendientes.
 
 Branch sugerida:
 
 ```bash
-feature/21-timeline-generator
+feature/22-missing-scenes
 ```
 
 ## Objetivo
 
-Generar `data/timeline.json` ordenando las escenas según los tiempos del guion y vinculando cada escena con su asset resuelto o con su estado pendiente.
+Crear un reporte claro de escenas que **no están listas para el render automático**.
 
-Esta fase convierte:
+Esta fase audita `data/timeline.json` y genera `data/missing_scenes.json` con razones accionables.
 
-```txt
-scenes.json + visual_plan.json + resolved_assets.json
-↓
-timeline.json
-```
-
-El timeline será la base para las siguientes fases:
-
-```txt
-missing_scenes.json
-placeholders
-prepared_clips
-preview_video.mp4
-```
+No resuelve escenas. No crea placeholders. No descarga clips. Solo reporta qué falta o qué necesita revisión.
 
 ## Contexto importante
 
-- El parser ya genera `data/scenes.json`.
-- El clasificador ya genera `data/visual_plan.json`.
-- El issue #20 ya genera `data/resolved_assets.json`.
-- `resolved_assets.json` es la fuente de verdad para saber si una escena usa Pexels, asset local, fallback stock, placeholder o queda pendiente.
-- Esta fase no debe volver a decidir assets desde `selected_assets.json`.
+- El issue #20 genera `data/resolved_assets.json`.
+- El issue #21 genera `data/timeline.json`.
+- `timeline.json` ya contiene tiempos, duración, `status`, `resolution_type`, `clip_path`, `primary_action`, `asset_type` y mensajes.
+- Este issue debe consumir `timeline.json` como fuente principal.
+- El siguiente issue (#23) usará este reporte para generar placeholders.
 
-## Entradas obligatorias
+## Entrada obligatoria
 
 ```txt
-data/scenes.json
-data/visual_plan.json
-data/resolved_assets.json
+data/timeline.json
 ```
 
 ## Salida
 
 ```txt
-data/timeline.json
+data/missing_scenes.json
 ```
 
 ## Estructura esperada
@@ -59,155 +44,118 @@ data/timeline.json
 {
   "project_title": "El Fin del Excel para Cobrar",
   "generated_at": "2026-05-26T00:00:00Z",
-  "timeline": [
-    {
-      "scene": 1,
-      "start": "0:00",
-      "end": "0:03",
-      "start_seconds": 0,
-      "end_seconds": 3,
-      "duration_seconds": 3,
-      "section": "EL GANCHO",
-      "asset_type": "mixed",
-      "resolution_type": "pexels",
-      "status": "ready",
-      "clip_path": "exports/clips/scene_01_clip_01.mp4",
-      "primary_action": "...",
-      "visual_intent": "...",
-      "text_on_screen": "...",
-      "audio": "...",
-      "message": "Clip Pexels seleccionado."
-    },
+  "missing_scenes": [
     {
       "scene": 3,
       "start": "0:08",
       "end": "0:20",
-      "start_seconds": 8,
-      "end_seconds": 20,
       "duration_seconds": 12,
-      "section": "LA SOLUCIÓN Y EL ORDEN",
       "asset_type": "screen_recording",
       "resolution_type": "missing_asset",
       "status": "needs_screen_recording",
-      "clip_path": null,
-      "primary_action": "Grabar pantalla del dashboard.",
-      "visual_intent": "...",
-      "text_on_screen": "...",
-      "audio": "...",
-      "message": "Grabar pantalla o interfaz."
+      "severity": "blocking",
+      "reason": "La escena requiere una grabación de pantalla y no tiene asset listo.",
+      "primary_action": "Grabar interfaz de SusyCafe.",
+      "suggested_action": "Grabar pantalla o asignar un video local desde el panel."
     }
   ],
   "summary": {
-    "scene_count": 5,
-    "ready_count": 2,
-    "pending_count": 3,
-    "total_duration_seconds": 45
+    "missing_count": 3,
+    "blocking_count": 3,
+    "warning_count": 0
   }
 }
 ```
 
-## Reglas de duración
+## Estados que deben reportarse como faltantes
 
-- Calcular `start_seconds` desde `scene.start`.
-- Calcular `end_seconds` desde `scene.end`.
-- Calcular `duration_seconds = end_seconds - start_seconds`.
-- Si la duración es menor o igual a 0, fallar con mensaje claro.
-- Soportar al menos formato `M:SS` y `H:MM:SS`.
-
-Ejemplos:
+Reportar como `severity = "blocking"`:
 
 ```txt
-0:00 → 0
-0:03 → 3
-1:05 → 65
-1:02:03 → 3723
+needs_self_recording
+needs_screen_recording
+needs_manual_review
+needs_fallback_search
+missing_asset
 ```
 
-## Reglas de orden
+## Assets rotos o inexistentes
 
-- Ordenar las escenas por `start_seconds`.
-- Si dos escenas tienen el mismo `start_seconds`, ordenar por número de escena.
-- No reordenar por asset ni por status.
-
-## Reglas de vínculo con assets
-
-### 1. Escena `ready` con `resolution_type = "pexels"`
-
-Debe generar:
+También reportar como `severity = "blocking"` si una escena tiene:
 
 ```txt
-clip_path = exports/clips/scene_XX_clip_01.mp4
 status = ready
 ```
 
-### 2. Escena `ready` con `resolution_type = "local"`
-
-Debe generar `clip_path` usando la extensión del `local_path` original:
+o:
 
 ```txt
-local_assets/dashboard.mov
-↓
-exports/clips/scene_03_clip_01.mov
-```
-
-Si no hay extensión, usar `.mp4` como fallback.
-
-### 3. Escena con `resolution_type = "fallback_stock"`
-
-Si tiene `selected_clip`, debe generar:
-
-```txt
-clip_path = exports/clips/scene_XX_clip_01.mp4
 status = fallback_stock
 ```
 
-Si no tiene `selected_clip`, debe mantener:
+pero:
 
-```txt
-clip_path = null
-status = needs_fallback_search
-```
+- `clip_path` está vacío o `null`;
+- el archivo indicado en `clip_path` no existe localmente.
 
-### 4. Escena con `resolution_type = "placeholder"`
+En estos casos el reporte debe indicar que el asset fue marcado como listo, pero el archivo no está disponible para render.
 
-Debe marcar:
+## Placeholders
+
+Si una escena tiene:
 
 ```txt
 status = placeholder
-clip_path = null
 ```
 
-No crear placeholder de video todavía.
+no debe reportarse como faltante en esta fase.
 
-### 5. Escena pendiente o sin asset
+Motivo: el placeholder es una resolución temporal válida. El issue #23 se encargará de crear el archivo placeholder real.
 
-Para estos estados:
+## Reglas de reason y suggested_action
+
+El reporte debe explicar claramente el problema:
+
+### `needs_self_recording`
 
 ```txt
-needs_self_recording
-needs_screen_recording
-needs_manual_review
-needs_fallback_search
-missing_asset
+reason = "La escena requiere grabación del creador y no tiene asset local listo."
+suggested_action = "Grabar al creador o asignar un video local desde el panel."
 ```
 
-Debe generar:
+### `needs_screen_recording`
 
 ```txt
-clip_path = null
+reason = "La escena requiere una grabación de pantalla y no tiene asset listo."
+suggested_action = "Grabar pantalla o asignar un video local desde el panel."
 ```
 
-## Estados permitidos
+### `needs_fallback_search`
 
 ```txt
-ready
-fallback_stock
-placeholder
-needs_self_recording
-needs_screen_recording
-needs_fallback_search
-missing_asset
-needs_manual_review
+reason = "La escena necesita stock de relleno, pero todavía no tiene sugerencias disponibles."
+suggested_action = "Ejecutar una búsqueda fallback en una fase posterior o marcar placeholder."
+```
+
+### `missing_asset`
+
+```txt
+reason = "La escena no tiene asset seleccionado ni resolución lista para render."
+suggested_action = "Seleccionar Pexels, asignar video local, usar fallback stock o marcar placeholder."
+```
+
+### `needs_manual_review`
+
+```txt
+reason = "La escena requiere revisión manual antes del render."
+suggested_action = "Revisar la escena y elegir una resolución válida."
+```
+
+### Asset roto o inexistente
+
+```txt
+reason = "La escena fue marcada como lista, pero el archivo indicado en clip_path no existe."
+suggested_action = "Ejecutar export, corregir clip_path o volver a seleccionar el asset."
 ```
 
 ## Comando esperado
@@ -215,35 +163,34 @@ needs_manual_review
 Agregar comando:
 
 ```bash
-python3 main.py timeline
+python3 main.py missing
 ```
 
 Debe generar:
 
 ```txt
-data/timeline.json
+data/missing_scenes.json
 ```
 
 Salida esperada en terminal:
 
 ```txt
-✅ Timeline generado
-Archivo generado: data/timeline.json
-Escenas: 5
-Duración total: 45s
-Ready: 2
-Pendientes: 3
+✅ Reporte de escenas faltantes generado
+Archivo generado: data/missing_scenes.json
+Faltantes: 3
+Bloqueantes: 3
+Warnings: 0
 ```
 
 ## Archivos permitidos para modificar o crear
 
 - `CURRENT_TASK.md`
 - `main.py`
-- `timeline/__init__.py`
-- `timeline/timeline_generator.py`
-- `tests/test_timeline_generator.py`
+- `missing/__init__.py`
+- `missing/missing_scene_detector.py`
+- `tests/test_missing_scene_detector.py`
 - `README.md`
-- `data/timeline.json`
+- `data/missing_scenes.json`
 
 ## No tocar
 
@@ -260,6 +207,8 @@ Pendientes: 3
 - `selection/asset_selector.py`
 - `resolution/asset_resolver.py`
 - `tests/test_asset_resolver.py`
+- `timeline/timeline_generator.py`
+- `tests/test_timeline_generator.py`
 - `script.md`
 - `data/scenes.json`
 - `data/visual_plan.json`
@@ -267,21 +216,24 @@ Pendientes: 3
 - `data/scored_results.json`
 - `data/selected_assets.json`
 - `data/resolved_assets.json`
+- `data/timeline.json`
 
 ## Criterios de aceptación
 
-- `python3 main.py timeline` genera `data/timeline.json`.
-- El timeline tiene una entrada por cada escena de `data/scenes.json`.
-- Las escenas están ordenadas por tiempo de inicio.
-- Calcula `start_seconds`, `end_seconds` y `duration_seconds` correctamente.
-- Calcula `total_duration_seconds`.
-- Vincula escenas `ready` con `clip_path` esperado en `exports/clips/`.
-- Preserva estados pendientes desde `resolved_assets.json`.
-- Marca escenas sin asset con `clip_path = null`.
+- `python3 main.py missing` genera `data/missing_scenes.json`.
+- Detecta escenas con `needs_self_recording`.
+- Detecta escenas con `needs_screen_recording`.
+- Detecta escenas con `needs_manual_review`.
+- Detecta escenas con `needs_fallback_search`.
+- Detecta escenas con `missing_asset`.
+- Detecta escenas listas con `clip_path` vacío o inexistente.
+- No reporta placeholders como faltantes.
+- Cada escena reportada incluye `reason` claro.
+- Cada escena reportada incluye `suggested_action` concreta.
 - No descarga clips.
 - No copia clips.
 - No crea placeholders.
-- No recorta clips.
+- No modifica `timeline.json`.
 - No renderiza video.
 - No llama a Pexels.
 - No llama a Ollama/Gemini/OpenAI.
@@ -289,7 +241,7 @@ Pendientes: 3
 ## Tests esperados
 
 ```bash
-.venv/bin/python -m pytest tests/test_timeline_generator.py
+.venv/bin/python -m pytest tests/test_missing_scene_detector.py
 .venv/bin/python -m pytest tests -q
 ```
 
@@ -297,9 +249,11 @@ Deben pasar.
 
 ## Fuera de alcance
 
-- Detectar escenas faltantes en `missing_scenes.json`.
 - Crear clips placeholder.
-- Preparar/recortar clips.
-- Verificar con FFmpeg si el clip existe o cuánto dura realmente.
+- Reparar assets rotos.
+- Ejecutar export automáticamente.
+- Buscar fallback stock.
+- Modificar selección de assets.
+- Crear timeline.
 - Renderizar video preliminar.
 - Agregar UI nueva.

@@ -24,6 +24,7 @@ SCORED_RESULTS_PATH = DATA_DIR / "scored_results.json"
 RESOLUTION_CHOICES_PATH = DATA_DIR / "resolution_choices.json"
 RESOLVED_ASSETS_PATH = DATA_DIR / "resolved_assets.json"
 TIMELINE_PATH = DATA_DIR / "timeline.json"
+MISSING_SCENES_PATH = DATA_DIR / "missing_scenes.json"
 PANEL_OUTPUT_PATH = Path("output") / "results_panel.html"
 SELECTED_ASSETS_PATH = DATA_DIR / "selected_assets.json"
 EXPORTS_DIR = Path("exports")
@@ -298,6 +299,35 @@ def run_timeline() -> dict:
     return timeline
 
 
+def run_missing() -> dict:
+    from missing.missing_scene_detector import detect_missing_scenes
+
+    timeline_data = load_json(TIMELINE_PATH)
+    missing_scenes = detect_missing_scenes(
+        timeline_data=timeline_data,
+        project_root=Path("."),
+    )
+
+    save_json(MISSING_SCENES_PATH, missing_scenes)
+
+    summary = missing_scenes["summary"]
+
+    print("\n✅ Reporte de escenas faltantes generado")
+    print(f"Archivo generado: {MISSING_SCENES_PATH}")
+    print(f"Faltantes: {summary['missing_count']}")
+    print(f"Bloqueantes: {summary['blocking_count']}")
+    print(f"Warnings: {summary['warning_count']}")
+
+    for item in missing_scenes["missing_scenes"]:
+        print(
+            f"Escena {item['scene']} → "
+            f"{item['status']} → "
+            f"{item['reason']}"
+        )
+
+    return missing_scenes
+
+
 def run_all() -> None:
     print("\n🚀 Ejecutando flujo completo")
     run_parse()
@@ -323,6 +353,7 @@ def main():
             "export",
             "resolve",
             "timeline",
+            "missing",
             "all",
         ],
         help=(
@@ -335,6 +366,7 @@ def main():
             "export: descarga selección y genera selected_broll.zip | "
             "resolve: genera resolved_assets.json | "
             "timeline: genera timeline.json | "
+            "missing: genera missing_scenes.json | "
             "all: ejecuta parse + classify + search + score"
         ),
     )
@@ -367,6 +399,9 @@ def main():
 
     if args.command == "timeline":
         run_timeline()
+
+    if args.command == "missing":
+        run_missing()
 
     if args.command == "all":
         run_all()
