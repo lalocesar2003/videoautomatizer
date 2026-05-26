@@ -23,6 +23,7 @@ PEXELS_RESULTS_PATH = DATA_DIR / "pexels_results.json"
 SCORED_RESULTS_PATH = DATA_DIR / "scored_results.json"
 RESOLUTION_CHOICES_PATH = DATA_DIR / "resolution_choices.json"
 RESOLVED_ASSETS_PATH = DATA_DIR / "resolved_assets.json"
+TIMELINE_PATH = DATA_DIR / "timeline.json"
 PANEL_OUTPUT_PATH = Path("output") / "results_panel.html"
 SELECTED_ASSETS_PATH = DATA_DIR / "selected_assets.json"
 EXPORTS_DIR = Path("exports")
@@ -262,6 +263,41 @@ def run_resolve() -> dict:
     return resolved_assets
 
 
+def run_timeline() -> dict:
+    from timeline.timeline_generator import generate_timeline
+
+    scenes_data = load_json(SCENES_PATH)
+    visual_plan_data = load_json(VISUAL_PLAN_PATH)
+    resolved_assets_data = load_json(RESOLVED_ASSETS_PATH)
+
+    timeline = generate_timeline(
+        scenes_data=scenes_data,
+        visual_plan_data=visual_plan_data,
+        resolved_assets_data=resolved_assets_data,
+    )
+
+    save_json(TIMELINE_PATH, timeline)
+
+    summary = timeline["summary"]
+
+    print("\n✅ Timeline generado")
+    print(f"Archivo generado: {TIMELINE_PATH}")
+    print(f"Escenas: {summary['scene_count']}")
+    print(f"Duración total: {summary['total_duration_seconds']}s")
+    print(f"Ready: {summary['ready_count']}")
+    print(f"Pendientes: {summary['pending_count']}")
+
+    for item in timeline["timeline"]:
+        print(
+            f"Escena {item['scene']} → "
+            f"{item['start']} - {item['end']} → "
+            f"{item['duration_seconds']}s → "
+            f"{item['status']}"
+        )
+
+    return timeline
+
+
 def run_all() -> None:
     print("\n🚀 Ejecutando flujo completo")
     run_parse()
@@ -286,6 +322,7 @@ def main():
             "panel",
             "export",
             "resolve",
+            "timeline",
             "all",
         ],
         help=(
@@ -297,6 +334,7 @@ def main():
             "panel: genera output/results_panel.html | "
             "export: descarga selección y genera selected_broll.zip | "
             "resolve: genera resolved_assets.json | "
+            "timeline: genera timeline.json | "
             "all: ejecuta parse + classify + search + score"
         ),
     )
@@ -326,6 +364,9 @@ def main():
 
     if args.command == "resolve":
         run_resolve()
+
+    if args.command == "timeline":
+        run_timeline()
 
     if args.command == "all":
         run_all()
