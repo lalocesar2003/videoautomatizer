@@ -82,6 +82,10 @@ class ZipDownloaderTests(unittest.TestCase):
     def test_build_clip_filename(self) -> None:
         self.assertEqual(build_clip_filename(1, 1), "scene_01_clip_01.mp4")
         self.assertEqual(build_clip_filename(12, 3), "scene_12_clip_03.mp4")
+        self.assertEqual(
+            build_clip_filename(3, 1, extension=".mov"),
+            "scene_03_clip_01.mov",
+        )
 
     def test_load_selected_assets_fails_if_file_missing(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -223,6 +227,155 @@ class ZipDownloaderTests(unittest.TestCase):
             )
 
             self.assertEqual(summary["downloaded_count"], 1)
+
+    def test_export_selected_assets_copies_local_assets_without_fetching_them(self) -> None:
+        calls = []
+
+        def fake_fetcher(url: str) -> bytes:
+            calls.append(url)
+            return b"pexels-video"
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            local_assets_dir = root / "local_assets"
+            local_assets_dir.mkdir()
+            local_clip_path = local_assets_dir / "dashboard.mov"
+            local_clip_path.write_bytes(b"local-video")
+
+            selected_assets = {
+                "project_title": "Test",
+                "selected_assets": [
+                    SELECTED_ASSETS["selected_assets"][0],
+                    {
+                        "scene": 3,
+                        "asset_type": "screen_recording",
+                        "selection_type": "local",
+                        "selected_clip": {
+                            "provider": "local",
+                            "local_path": "local_assets/dashboard.mov",
+                            "original_filename": "dashboard.mov",
+                        },
+                    },
+                ],
+            }
+            selected_assets_path = root / "data" / "selected_assets.json"
+            clips_dir = root / "exports" / "clips"
+            zip_path = root / "exports" / "selected_broll.zip"
+
+            selected_assets_path.parent.mkdir(parents=True)
+            selected_assets_path.write_text(
+                json.dumps(selected_assets),
+                encoding="utf-8",
+            )
+
+            summary = export_selected_assets(
+                selected_assets_path=selected_assets_path,
+                clips_dir=clips_dir,
+                zip_path=zip_path,
+                fetcher=fake_fetcher,
+            )
+
+            self.assertEqual(summary["downloaded_count"], 2)
+            self.assertEqual(calls, ["https://videos.pexels.com/clip-1.mp4"])
+            self.assertEqual(
+                (clips_dir / "scene_03_clip_01.mov").read_bytes(),
+                b"local-video",
+            )
+
+            with zipfile.ZipFile(zip_path) as archive:
+                self.assertIn("clips/scene_01_clip_01.mp4", archive.namelist())
+                self.assertIn("clips/scene_03_clip_01.mov", archive.namelist())
+                self.assertIn("selected_assets.json", archive.namelist())
+
+    def test_export_selected_assets_rejects_local_asset_without_path(self) -> None:
+        selected_assets = {
+            "project_title": "Test",
+            "selected_assets": [
+                {
+                    "scene": 3,
+                    "selection_type": "local",
+                    "selected_clip": {
+                        "provider": "local",
+                        "local_path": "",
+                    },
+                }
+            ],
+        }
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            selected_assets_path = root / "data" / "selected_assets.json"
+            selected_assets_path.parent.mkdir(parents=True)
+            selected_assets_path.write_text(json.dumps(selected_assets), encoding="utf-8")
+
+            with self.assertRaises(ValueError):
+                export_selected_assets(
+                    selected_assets_path=selected_assets_path,
+                    clips_dir=root / "exports" / "clips",
+                    zip_path=root / "exports" / "selected_broll.zip",
+                    fetcher=lambda url: b"",
+                )
+
+    def test_export_selected_assets_rejects_missing_local_file(self) -> None:
+        selected_assets = {
+            "project_title": "Test",
+            "selected_assets": [
+                {
+                    "scene": 3,
+                    "selection_type": "local",
+                    "selected_clip": {
+                        "provider": "local",
+                        "local_path": "local_assets/missing.mp4",
+                    },
+                }
+            ],
+        }
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            selected_assets_path = root / "data" / "selected_assets.json"
+            selected_assets_path.parent.mkdir(parents=True)
+            selected_assets_path.write_text(json.dumps(selected_assets), encoding="utf-8")
+
+            with self.assertRaises(FileNotFoundError):
+                export_selected_assets(
+                    selected_assets_path=selected_assets_path,
+                    clips_dir=root / "exports" / "clips",
+                    zip_path=root / "exports" / "selected_broll.zip",
+                    fetcher=lambda url: b"",
+                )
+
+    def test_export_selected_assets_rejects_unsupported_local_extension(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            local_assets_dir = root / "local_assets"
+            local_assets_dir.mkdir()
+            (local_assets_dir / "notes.txt").write_text("not video", encoding="utf-8")
+
+            selected_assets = {
+                "project_title": "Test",
+                "selected_assets": [
+                    {
+                        "scene": 3,
+                        "selection_type": "local",
+                        "selected_clip": {
+                            "provider": "local",
+                            "local_path": "local_assets/notes.txt",
+                        },
+                    }
+                ],
+            }
+            selected_assets_path = root / "data" / "selected_assets.json"
+            selected_assets_path.parent.mkdir(parents=True)
+            selected_assets_path.write_text(json.dumps(selected_assets), encoding="utf-8")
+
+            with self.assertRaises(ValueError):
+                export_selected_assets(
+                    selected_assets_path=selected_assets_path,
+                    clips_dir=root / "exports" / "clips",
+                    zip_path=root / "exports" / "selected_broll.zip",
+                    fetcher=lambda url: b"",
+                )
 
     def test_export_selected_assets_rejects_only_manual_tasks(self) -> None:
         selected_assets = {

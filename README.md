@@ -15,6 +15,7 @@ script.md
   → search    → data/pexels_results.json
   → score     → data/scored_results.json
   → panel     → data/selected_assets.json
+  → export    → exports/selected_broll.zip
 ```
 
 Cada fase lee/escribe JSON, así que puedes retomar desde cualquier punto.
@@ -129,19 +130,62 @@ streamlit run app.py
 
 Entrada:
 
+- `data/scenes.json`
+- `data/visual_plan.json`
 - `data/scored_results.json`
 
 Salida:
 
 - `data/selected_assets.json`
 
-Esta fase no descarga clips y no genera ZIP. Eso queda para Fase 5B.
+El panel permite elegir un clip de Pexels, dejar la escena como tarea manual
+o subir un video propio como asset local. Cada escena admite máximo un asset
+seleccionado.
+
+Los videos locales se guardan en:
+
+```text
+local_assets/
+```
+
+Estructura esperada para un asset local en `data/selected_assets.json`:
+
+```json
+{
+  "scene": 3,
+  "selection_type": "local",
+  "selected_clip": {
+    "provider": "local",
+    "local_path": "local_assets/scene_03_dashboard_demo.mp4",
+    "original_filename": "dashboard_demo.mp4"
+  }
+}
+```
+
+Esta fase no descarga clips y no genera ZIP.
 
 Para evitar telemetry de Streamlit al ejecutar:
 
 ```bash
 streamlit run app.py --browser.gatherUsageStats false
 ```
+
+## Exportar clips seleccionados
+
+Después de guardar `data/selected_assets.json` desde el panel:
+
+```bash
+python3 main.py export
+```
+
+El exportador:
+
+- descarga clips de Pexels usando `preview_url`;
+- copia assets locales desde `local_path`;
+- ignora escenas marcadas como `manual_task`;
+- genera `exports/clips/`;
+- genera `exports/selected_broll.zip`;
+- incluye una copia de `selected_assets.json` dentro del ZIP.
 
 ## Reglas de scoring
 
