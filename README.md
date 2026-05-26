@@ -15,6 +15,7 @@ script.md
   → search    → data/pexels_results.json
   → score     → data/scored_results.json
   → panel     → data/selected_assets.json
+  → resolve   → data/resolved_assets.json
   → export    → exports/selected_broll.zip
 ```
 
@@ -186,6 +187,43 @@ El exportador:
 - genera `exports/clips/`;
 - genera `exports/selected_broll.zip`;
 - incluye una copia de `selected_assets.json` dentro del ZIP.
+
+## Resolver assets por escena
+
+Antes de generar un timeline, cada escena debe tener una resolución clara:
+Pexels, local, fallback stock, placeholder o pendiente.
+
+```bash
+python3 main.py resolve
+```
+
+Entrada:
+
+- `data/scenes.json`
+- `data/visual_plan.json`
+- `data/selected_assets.json`
+
+Salida:
+
+- `data/resolved_assets.json`
+
+Opcionalmente puedes crear `data/resolution_choices.json` para forzar una
+decisión por escena sin crear UI nueva todavía:
+
+```json
+{
+  "resolutions": [
+    {
+      "scene": 3,
+      "resolution_type": "placeholder",
+      "message": "Usar placeholder hasta grabar el dashboard."
+    }
+  ]
+}
+```
+
+Esta fase no llama a Pexels, no llama a IA, no descarga clips y no renderiza
+video.
 
 ## Reglas de scoring
 

@@ -21,6 +21,8 @@ SCENES_PATH = DATA_DIR / "scenes.json"
 VISUAL_PLAN_PATH = DATA_DIR / "visual_plan.json"
 PEXELS_RESULTS_PATH = DATA_DIR / "pexels_results.json"
 SCORED_RESULTS_PATH = DATA_DIR / "scored_results.json"
+RESOLUTION_CHOICES_PATH = DATA_DIR / "resolution_choices.json"
+RESOLVED_ASSETS_PATH = DATA_DIR / "resolved_assets.json"
 PANEL_OUTPUT_PATH = Path("output") / "results_panel.html"
 SELECTED_ASSETS_PATH = DATA_DIR / "selected_assets.json"
 EXPORTS_DIR = Path("exports")
@@ -47,6 +49,13 @@ def save_json(path: Path, data: dict) -> None:
 def load_json(path: Path) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"No existe {path}")
+
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_optional_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
 
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -216,6 +225,43 @@ def run_export() -> dict:
     return summary
 
 
+def run_resolve() -> dict:
+    from resolution.asset_resolver import resolve_assets
+
+    scenes_data = load_json(SCENES_PATH)
+    visual_plan_data = load_json(VISUAL_PLAN_PATH)
+    selected_assets_data = load_json(SELECTED_ASSETS_PATH)
+    resolution_choices_data = load_optional_json(RESOLUTION_CHOICES_PATH)
+    scored_results_data = load_optional_json(SCORED_RESULTS_PATH)
+
+    resolved_assets = resolve_assets(
+        scenes_data=scenes_data,
+        visual_plan_data=visual_plan_data,
+        selected_assets_data=selected_assets_data,
+        resolution_choices_data=resolution_choices_data,
+        scored_results_data=scored_results_data,
+    )
+
+    save_json(RESOLVED_ASSETS_PATH, resolved_assets)
+
+    summary = resolved_assets["summary"]
+
+    print("\n✅ Resolución de assets terminada")
+    print(f"Archivo generado: {RESOLVED_ASSETS_PATH}")
+    print(f"Escenas resueltas: {summary['scene_count']}")
+    print(f"Ready: {summary['ready_count']}")
+    print(f"Pendientes: {summary['pending_count']}")
+
+    for item in resolved_assets["resolved_assets"]:
+        print(
+            f"Escena {item['scene']} → "
+            f"{item['resolution_type']} → "
+            f"{item['status']}"
+        )
+
+    return resolved_assets
+
+
 def run_all() -> None:
     print("\n🚀 Ejecutando flujo completo")
     run_parse()
@@ -239,6 +285,7 @@ def main():
             "score",
             "panel",
             "export",
+            "resolve",
             "all",
         ],
         help=(
@@ -249,6 +296,7 @@ def main():
             "score: genera scored_results.json | "
             "panel: genera output/results_panel.html | "
             "export: descarga selección y genera selected_broll.zip | "
+            "resolve: genera resolved_assets.json | "
             "all: ejecuta parse + classify + search + score"
         ),
     )
@@ -275,6 +323,9 @@ def main():
 
     if args.command == "export":
         run_export()
+
+    if args.command == "resolve":
+        run_resolve()
 
     if args.command == "all":
         run_all()
