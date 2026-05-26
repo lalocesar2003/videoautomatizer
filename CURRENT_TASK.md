@@ -2,195 +2,176 @@
 
 ## Tarea actual
 
-Issue #22 — Detectar escenas faltantes o pendientes.
+Issue #23 — Generar clips placeholder para escenas faltantes.
 
 Branch sugerida:
 
 ```bash
-feature/22-missing-scenes
+feature/23-video-placeholders
 ```
 
 ## Objetivo
 
-Crear un reporte claro de escenas que **no están listas para el render automático**.
+Crear clips placeholder para que el video preliminar no se rompa cuando falte una escena o cuando un asset marcado como listo todavía no exista localmente.
 
-Esta fase audita `data/timeline.json` y genera `data/missing_scenes.json` con razones accionables.
-
-No resuelve escenas. No crea placeholders. No descarga clips. Solo reporta qué falta o qué necesita revisión.
+Esta fase consume el reporte de escenas faltantes y genera videos placeholder reales en disco, con la misma duración que cada escena.
 
 ## Contexto importante
 
-- El issue #20 genera `data/resolved_assets.json`.
 - El issue #21 genera `data/timeline.json`.
-- `timeline.json` ya contiene tiempos, duración, `status`, `resolution_type`, `clip_path`, `primary_action`, `asset_type` y mensajes.
-- Este issue debe consumir `timeline.json` como fuente principal.
-- El siguiente issue (#23) usará este reporte para generar placeholders.
+- El issue #22 genera `data/missing_scenes.json`.
+- `missing_scenes.json` puede incluir:
+  - escenas pendientes de grabación;
+  - escenas sin asset;
+  - escenas `ready` cuyo `clip_path` todavía no existe localmente.
+- Esta fase debe crear un placeholder por cada entrada de `missing_scenes.json`.
+- El render preliminar posterior podrá usar estos placeholders si no existe un clip real.
 
-## Entrada obligatoria
+## Dependencia externa
 
-```txt
-data/timeline.json
-```
+Para generar clips de video reales se permite usar `ffmpeg` mediante `subprocess`.
 
-## Salida
+Reglas:
+
+- No agregar dependencias Python nuevas.
+- Si `ffmpeg` no está instalado, fallar con mensaje claro.
+- No descargar nada.
+- No llamar a Pexels.
+- No llamar a Ollama/Gemini/OpenAI.
+
+## Entradas obligatorias
 
 ```txt
 data/missing_scenes.json
+data/timeline.json
 ```
 
-## Estructura esperada
+## Salidas
+
+Carpeta de clips placeholder:
+
+```txt
+exports/placeholders/
+```
+
+Archivos esperados:
+
+```txt
+exports/placeholders/scene_01_placeholder.mp4
+exports/placeholders/scene_02_placeholder.mp4
+exports/placeholders/scene_03_placeholder.mp4
+```
+
+Manifest opcional pero recomendado para consumo posterior:
+
+```txt
+exports/placeholders/placeholder_manifest.json
+```
+
+## Estructura esperada del manifest
 
 ```json
 {
   "project_title": "El Fin del Excel para Cobrar",
   "generated_at": "2026-05-26T00:00:00Z",
-  "missing_scenes": [
+  "placeholders": [
     {
       "scene": 3,
-      "start": "0:08",
-      "end": "0:20",
+      "path": "exports/placeholders/scene_03_placeholder.mp4",
       "duration_seconds": 12,
       "asset_type": "screen_recording",
-      "resolution_type": "missing_asset",
       "status": "needs_screen_recording",
-      "severity": "blocking",
       "reason": "La escena requiere una grabación de pantalla y no tiene asset listo.",
-      "primary_action": "Grabar interfaz de SusyCafe.",
-      "suggested_action": "Grabar pantalla o asignar un video local desde el panel."
+      "primary_action": "Grabar interfaz de SusyCafe."
     }
   ],
   "summary": {
-    "missing_count": 3,
-    "blocking_count": 3,
-    "warning_count": 0
+    "placeholder_count": 1,
+    "total_duration_seconds": 12
   }
 }
 ```
 
-## Estados que deben reportarse como faltantes
+## Contenido visual del placeholder
 
-Reportar como `severity = "blocking"`:
+El clip debe ser simple y legible.
 
-```txt
-needs_self_recording
-needs_screen_recording
-needs_manual_review
-needs_fallback_search
-missing_asset
-```
-
-## Assets rotos o inexistentes
-
-También reportar como `severity = "blocking"` si una escena tiene:
+Debe mostrar texto equivalente a:
 
 ```txt
-status = ready
+ESCENA 3 FALTANTE
+Tipo: screen_recording
+Estado: needs_screen_recording
+Acción: Grabar dashboard de SusyCafe
+Duración: 12 segundos
 ```
 
-o:
+Para MVP, el diseño puede ser:
+
+- fondo oscuro;
+- texto blanco;
+- resolución vertical `1080x1920`;
+- sin audio;
+- formato `.mp4`;
+- duración exacta según `duration_seconds`.
+
+## Reglas de duración
+
+- Cada placeholder debe durar exactamente `duration_seconds` de la escena.
+- Si `duration_seconds` falta, es cero o es inválido, fallar con mensaje claro.
+- No calcular duración desde tiempos en esta fase si ya viene en `missing_scenes.json`.
+- `timeline.json` se puede usar para validar o complementar datos si falta contexto.
+
+## Reglas de generación
+
+- Crear un placeholder por cada entrada de `missing_scenes.json`.
+- Usar nombres determinísticos:
 
 ```txt
-status = fallback_stock
+scene_XX_placeholder.mp4
 ```
 
-pero:
-
-- `clip_path` está vacío o `null`;
-- el archivo indicado en `clip_path` no existe localmente.
-
-En estos casos el reporte debe indicar que el asset fue marcado como listo, pero el archivo no está disponible para render.
-
-## Placeholders
-
-Si una escena tiene:
-
-```txt
-status = placeholder
-```
-
-no debe reportarse como faltante en esta fase.
-
-Motivo: el placeholder es una resolución temporal válida. El issue #23 se encargará de crear el archivo placeholder real.
-
-## Reglas de reason y suggested_action
-
-El reporte debe explicar claramente el problema:
-
-### `needs_self_recording`
-
-```txt
-reason = "La escena requiere grabación del creador y no tiene asset local listo."
-suggested_action = "Grabar al creador o asignar un video local desde el panel."
-```
-
-### `needs_screen_recording`
-
-```txt
-reason = "La escena requiere una grabación de pantalla y no tiene asset listo."
-suggested_action = "Grabar pantalla o asignar un video local desde el panel."
-```
-
-### `needs_fallback_search`
-
-```txt
-reason = "La escena necesita stock de relleno, pero todavía no tiene sugerencias disponibles."
-suggested_action = "Ejecutar una búsqueda fallback en una fase posterior o marcar placeholder."
-```
-
-### `missing_asset`
-
-```txt
-reason = "La escena no tiene asset seleccionado ni resolución lista para render."
-suggested_action = "Seleccionar Pexels, asignar video local, usar fallback stock o marcar placeholder."
-```
-
-### `needs_manual_review`
-
-```txt
-reason = "La escena requiere revisión manual antes del render."
-suggested_action = "Revisar la escena y elegir una resolución válida."
-```
-
-### Asset roto o inexistente
-
-```txt
-reason = "La escena fue marcada como lista, pero el archivo indicado en clip_path no existe."
-suggested_action = "Ejecutar export, corregir clip_path o volver a seleccionar el asset."
-```
+- Si el archivo ya existe, se puede sobrescribir.
+- No modificar `data/timeline.json`.
+- No modificar `data/missing_scenes.json`.
+- No generar video final.
+- No recortar clips reales.
+- No tocar assets reales.
 
 ## Comando esperado
 
 Agregar comando:
 
 ```bash
-python3 main.py missing
+python3 main.py placeholders
 ```
 
 Debe generar:
 
 ```txt
-data/missing_scenes.json
+exports/placeholders/
+exports/placeholders/placeholder_manifest.json
 ```
 
 Salida esperada en terminal:
 
 ```txt
-✅ Reporte de escenas faltantes generado
-Archivo generado: data/missing_scenes.json
-Faltantes: 3
-Bloqueantes: 3
-Warnings: 0
+✅ Placeholders generados
+Carpeta: exports/placeholders
+Placeholders: 3
+Duración total: 37s
 ```
 
 ## Archivos permitidos para modificar o crear
 
 - `CURRENT_TASK.md`
 - `main.py`
-- `missing/__init__.py`
-- `missing/missing_scene_detector.py`
-- `tests/test_missing_scene_detector.py`
+- `placeholders/__init__.py`
+- `placeholders/placeholder_generator.py`
+- `tests/test_placeholder_generator.py`
 - `README.md`
-- `data/missing_scenes.json`
+- `exports/placeholders/`
+- `exports/placeholders/placeholder_manifest.json`
 
 ## No tocar
 
@@ -209,6 +190,8 @@ Warnings: 0
 - `tests/test_asset_resolver.py`
 - `timeline/timeline_generator.py`
 - `tests/test_timeline_generator.py`
+- `missing/missing_scene_detector.py`
+- `tests/test_missing_scene_detector.py`
 - `script.md`
 - `data/scenes.json`
 - `data/visual_plan.json`
@@ -217,31 +200,27 @@ Warnings: 0
 - `data/selected_assets.json`
 - `data/resolved_assets.json`
 - `data/timeline.json`
+- `data/missing_scenes.json`
 
 ## Criterios de aceptación
 
-- `python3 main.py missing` genera `data/missing_scenes.json`.
-- Detecta escenas con `needs_self_recording`.
-- Detecta escenas con `needs_screen_recording`.
-- Detecta escenas con `needs_manual_review`.
-- Detecta escenas con `needs_fallback_search`.
-- Detecta escenas con `missing_asset`.
-- Detecta escenas listas con `clip_path` vacío o inexistente.
-- No reporta placeholders como faltantes.
-- Cada escena reportada incluye `reason` claro.
-- Cada escena reportada incluye `suggested_action` concreta.
-- No descarga clips.
-- No copia clips.
-- No crea placeholders.
+- `python3 main.py placeholders` genera un clip por cada escena en `data/missing_scenes.json`.
+- Cada clip queda en `exports/placeholders/`.
+- Cada clip usa nombre `scene_XX_placeholder.mp4`.
+- Cada clip dura lo mismo que `duration_seconds`.
+- Cada placeholder muestra escena, tipo, estado, acción y duración.
+- Genera `exports/placeholders/placeholder_manifest.json`.
+- El manifest incluye una entrada por placeholder.
 - No modifica `timeline.json`.
-- No renderiza video.
-- No llama a Pexels.
-- No llama a Ollama/Gemini/OpenAI.
+- No modifica `missing_scenes.json`.
+- No descarga clips.
+- No llama a APIs externas.
+- Falla con mensaje claro si falta `ffmpeg`.
 
 ## Tests esperados
 
 ```bash
-.venv/bin/python -m pytest tests/test_missing_scene_detector.py
+.venv/bin/python -m pytest tests/test_placeholder_generator.py
 .venv/bin/python -m pytest tests -q
 ```
 
@@ -249,11 +228,9 @@ Deben pasar.
 
 ## Fuera de alcance
 
-- Crear clips placeholder.
-- Reparar assets rotos.
-- Ejecutar export automáticamente.
-- Buscar fallback stock.
-- Modificar selección de assets.
-- Crear timeline.
-- Renderizar video preliminar.
-- Agregar UI nueva.
+- Renderizar `exports/preview_video.mp4`.
+- Recortar clips reales.
+- Preparar clips en `exports/prepared_clips/`.
+- Actualizar `timeline.json` con paths de placeholder.
+- Generar audio, música, subtítulos o voz.
+- Crear UI nueva.
