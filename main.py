@@ -30,6 +30,7 @@ SELECTED_ASSETS_PATH = DATA_DIR / "selected_assets.json"
 EXPORTS_DIR = Path("exports")
 EXPORT_CLIPS_DIR = EXPORTS_DIR / "clips"
 SELECTED_BROLL_ZIP_PATH = EXPORTS_DIR / "selected_broll.zip"
+PLACEHOLDERS_DIR = EXPORTS_DIR / "placeholders"
 
 
 def read_script() -> str:
@@ -328,6 +329,35 @@ def run_missing() -> dict:
     return missing_scenes
 
 
+def run_placeholders() -> dict:
+    from placeholders.placeholder_generator import generate_placeholders
+
+    missing_scenes_data = load_json(MISSING_SCENES_PATH)
+    timeline_data = load_json(TIMELINE_PATH)
+
+    manifest = generate_placeholders(
+        missing_scenes_data=missing_scenes_data,
+        timeline_data=timeline_data,
+        output_dir=PLACEHOLDERS_DIR,
+    )
+
+    summary = manifest["summary"]
+
+    print("\n✅ Placeholders generados")
+    print(f"Carpeta: {PLACEHOLDERS_DIR}")
+    print(f"Placeholders: {summary['placeholder_count']}")
+    print(f"Duración total: {summary['total_duration_seconds']}s")
+
+    for item in manifest["placeholders"]:
+        print(
+            f"Escena {item['scene']} → "
+            f"{item['duration_seconds']}s → "
+            f"{item['path']}"
+        )
+
+    return manifest
+
+
 def run_all() -> None:
     print("\n🚀 Ejecutando flujo completo")
     run_parse()
@@ -354,6 +384,7 @@ def main():
             "resolve",
             "timeline",
             "missing",
+            "placeholders",
             "all",
         ],
         help=(
@@ -367,6 +398,7 @@ def main():
             "resolve: genera resolved_assets.json | "
             "timeline: genera timeline.json | "
             "missing: genera missing_scenes.json | "
+            "placeholders: genera clips placeholder | "
             "all: ejecuta parse + classify + search + score"
         ),
     )
@@ -402,6 +434,9 @@ def main():
 
     if args.command == "missing":
         run_missing()
+
+    if args.command == "placeholders":
+        run_placeholders()
 
     if args.command == "all":
         run_all()
