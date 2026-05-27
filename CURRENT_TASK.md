@@ -2,70 +2,69 @@
 
 ## Tarea actual
 
-Issue #23 — Generar clips placeholder para escenas faltantes.
+Issue #24 — Preparar clips recortados según duración del guion.
 
 Branch sugerida:
 
 ```bash
-feature/23-video-placeholders
+feature/24-prepare-clips
 ```
 
 ## Objetivo
 
-Crear clips placeholder para que el video preliminar no se rompa cuando falte una escena o cuando un asset marcado como listo todavía no exista localmente.
+Tomar los assets disponibles para cada escena y generar versiones preparadas con la duración exacta definida por el guion.
 
-Esta fase consume el reporte de escenas faltantes y genera videos placeholder reales en disco, con la misma duración que cada escena.
+Esta fase debe producir clips listos para que la siguiente fase pueda renderizar `exports/preview_video.mp4` sin tener que decidir duraciones.
 
 ## Contexto importante
 
-- El issue #21 genera `data/timeline.json`.
-- El issue #22 genera `data/missing_scenes.json`.
-- `missing_scenes.json` puede incluir:
-  - escenas pendientes de grabación;
-  - escenas sin asset;
-  - escenas `ready` cuyo `clip_path` todavía no existe localmente.
-- Esta fase debe crear un placeholder por cada entrada de `missing_scenes.json`.
-- El render preliminar posterior podrá usar estos placeholders si no existe un clip real.
+- El issue #21 genera `data/timeline.json` con el orden y duración de cada escena.
+- El issue #22 detecta escenas faltantes en `data/missing_scenes.json`.
+- El issue #23 genera placeholders en `exports/placeholders/`.
+- El issue #24 no renderiza el video final.
+- El issue #24 no descarga assets.
+- El issue #24 no modifica clips originales.
 
-## Dependencia externa
+## Entradas
 
-Para generar clips de video reales se permite usar `ffmpeg` mediante `subprocess`.
-
-Reglas:
-
-- No agregar dependencias Python nuevas.
-- Si `ffmpeg` no está instalado, fallar con mensaje claro.
-- No descargar nada.
-- No llamar a Pexels.
-- No llamar a Ollama/Gemini/OpenAI.
-
-## Entradas obligatorias
+Archivo principal:
 
 ```txt
-data/missing_scenes.json
 data/timeline.json
 ```
 
-## Salidas
+Carpeta de clips descargados o copiados:
 
-Carpeta de clips placeholder:
+```txt
+exports/clips/
+```
+
+Carpeta de placeholders disponible como respaldo:
 
 ```txt
 exports/placeholders/
 ```
 
-Archivos esperados:
+## Salida
+
+Carpeta de clips preparados:
 
 ```txt
-exports/placeholders/scene_01_placeholder.mp4
-exports/placeholders/scene_02_placeholder.mp4
-exports/placeholders/scene_03_placeholder.mp4
+exports/prepared_clips/
 ```
 
-Manifest opcional pero recomendado para consumo posterior:
+Ejemplo:
 
 ```txt
-exports/placeholders/placeholder_manifest.json
+exports/prepared_clips/scene_01_ready.mp4
+exports/prepared_clips/scene_02_ready.mp4
+exports/prepared_clips/scene_03_ready.mp4
+```
+
+Manifest recomendado:
+
+```txt
+exports/prepared_clips/prepared_manifest.json
 ```
 
 ## Estructura esperada del manifest
@@ -74,104 +73,128 @@ exports/placeholders/placeholder_manifest.json
 {
   "project_title": "El Fin del Excel para Cobrar",
   "generated_at": "2026-05-26T00:00:00Z",
-  "placeholders": [
+  "prepared_clips": [
     {
-      "scene": 3,
-      "path": "exports/placeholders/scene_03_placeholder.mp4",
-      "duration_seconds": 12,
-      "asset_type": "screen_recording",
-      "status": "needs_screen_recording",
-      "reason": "La escena requiere una grabación de pantalla y no tiene asset listo.",
-      "primary_action": "Grabar interfaz de SusyCafe."
+      "scene": 1,
+      "status": "ready",
+      "source_path": "exports/clips/scene_01_clip_01.mp4",
+      "output_path": "exports/prepared_clips/scene_01_ready.mp4",
+      "duration_seconds": 3,
+      "source_duration_seconds": 10.2,
+      "strategy": "trim"
     }
   ],
+  "warnings": [],
   "summary": {
-    "placeholder_count": 1,
-    "total_duration_seconds": 12
+    "scene_count": 5,
+    "prepared_count": 5,
+    "warning_count": 0,
+    "total_duration_seconds": 45
   }
 }
 ```
 
-## Contenido visual del placeholder
+## Reglas principales
 
-El clip debe ser simple y legible.
+Para cada escena de `data/timeline.json`:
 
-Debe mostrar texto equivalente a:
+1. Leer `duration_seconds`.
+2. Ubicar el asset fuente.
+3. Generar un archivo preparado en `exports/prepared_clips/`.
+4. Nombrar el archivo de forma determinística:
 
 ```txt
-ESCENA 3 FALTANTE
-Tipo: screen_recording
-Estado: needs_screen_recording
-Acción: Grabar dashboard de SusyCafe
-Duración: 12 segundos
+scene_XX_ready.mp4
 ```
 
-Para MVP, el diseño puede ser:
+## Fuentes permitidas
 
-- fondo oscuro;
-- texto blanco;
-- resolución vertical `1080x1920`;
-- sin audio;
-- formato `.mp4`;
-- duración exacta según `duration_seconds`.
+La fuente puede venir de:
+
+1. `clip_path` del timeline, si existe y apunta a un archivo real.
+2. Placeholder correspondiente en `exports/placeholders/scene_XX_placeholder.mp4`, si la escena no tiene clip real.
+
+No se debe buscar en Pexels ni descargar nada en esta fase.
 
 ## Reglas de duración
 
-- Cada placeholder debe durar exactamente `duration_seconds` de la escena.
-- Si `duration_seconds` falta, es cero o es inválido, fallar con mensaje claro.
-- No calcular duración desde tiempos en esta fase si ya viene en `missing_scenes.json`.
-- `timeline.json` se puede usar para validar o complementar datos si falta contexto.
+Si `source_duration > scene_duration`:
 
-## Reglas de generación
+- recortar desde el inicio hasta `scene_duration`.
+- estrategia: `trim`.
 
-- Crear un placeholder por cada entrada de `missing_scenes.json`.
-- Usar nombres determinísticos:
+Si `source_duration == scene_duration` o la diferencia es mínima:
+
+- generar/copiar una versión preparada.
+- estrategia: `copy` o `normalize`.
+
+Si `source_duration < scene_duration`:
+
+- para MVP, no hacer loop automático.
+- marcar warning claro.
+- si existe placeholder para esa escena, se permite usarlo como respaldo.
+- si no existe placeholder, marcar la escena como `needs_manual_review`.
+
+Estrategias posibles:
 
 ```txt
-scene_XX_placeholder.mp4
+trim
+copy
+placeholder
+manual_review
 ```
 
-- Si el archivo ya existe, se puede sobrescribir.
-- No modificar `data/timeline.json`.
-- No modificar `data/missing_scenes.json`.
-- No generar video final.
-- No recortar clips reales.
-- No tocar assets reales.
+Estrategias fuera de alcance por ahora:
+
+```txt
+loop
+freeze_last_frame
+```
+
+## Dependencia externa
+
+Se permite usar `ffmpeg` y `ffprobe` mediante `subprocess`.
+
+Reglas:
+
+- No agregar dependencias Python nuevas.
+- Si falta `ffmpeg` o `ffprobe`, fallar con mensaje claro.
+- Mantener compatibilidad con Python 3.12.
 
 ## Comando esperado
 
 Agregar comando:
 
 ```bash
-python3 main.py placeholders
-```
-
-Debe generar:
-
-```txt
-exports/placeholders/
-exports/placeholders/placeholder_manifest.json
+python3 main.py prepare
 ```
 
 Salida esperada en terminal:
 
 ```txt
-✅ Placeholders generados
-Carpeta: exports/placeholders
-Placeholders: 3
-Duración total: 37s
+✅ Clips preparados
+Carpeta: exports/prepared_clips
+Preparados: 5
+Warnings: 0
+Duración total: 45s
+```
+
+Si hay clips cortos:
+
+```txt
+⚠️ Escena 2: clip más corto que la duración objetivo. Requiere revisión manual.
 ```
 
 ## Archivos permitidos para modificar o crear
 
 - `CURRENT_TASK.md`
 - `main.py`
-- `placeholders/__init__.py`
-- `placeholders/placeholder_generator.py`
-- `tests/test_placeholder_generator.py`
+- `preparation/__init__.py`
+- `preparation/clip_preparer.py`
+- `tests/test_clip_preparer.py`
 - `README.md`
-- `exports/placeholders/`
-- `exports/placeholders/placeholder_manifest.json`
+- `exports/prepared_clips/`
+- `exports/prepared_clips/prepared_manifest.json`
 
 ## No tocar
 
@@ -187,11 +210,9 @@ Duración total: 37s
 - `panel/streamlit_panel.py`
 - `selection/asset_selector.py`
 - `resolution/asset_resolver.py`
-- `tests/test_asset_resolver.py`
 - `timeline/timeline_generator.py`
-- `tests/test_timeline_generator.py`
 - `missing/missing_scene_detector.py`
-- `tests/test_missing_scene_detector.py`
+- `placeholders/placeholder_generator.py`
 - `script.md`
 - `data/scenes.json`
 - `data/visual_plan.json`
@@ -204,23 +225,22 @@ Duración total: 37s
 
 ## Criterios de aceptación
 
-- `python3 main.py placeholders` genera un clip por cada escena en `data/missing_scenes.json`.
-- Cada clip queda en `exports/placeholders/`.
-- Cada clip usa nombre `scene_XX_placeholder.mp4`.
-- Cada clip dura lo mismo que `duration_seconds`.
-- Cada placeholder muestra escena, tipo, estado, acción y duración.
-- Genera `exports/placeholders/placeholder_manifest.json`.
-- El manifest incluye una entrada por placeholder.
-- No modifica `timeline.json`.
-- No modifica `missing_scenes.json`.
-- No descarga clips.
-- No llama a APIs externas.
-- Falla con mensaje claro si falta `ffmpeg`.
+- `python3 main.py prepare` genera `exports/prepared_clips/`.
+- Crea un archivo `scene_XX_ready.mp4` por cada escena que pueda resolverse con clip real o placeholder.
+- Cada clip preparado dura lo mismo que `duration_seconds` de su escena.
+- No modifica los clips originales en `exports/clips/`.
+- No modifica placeholders originales en `exports/placeholders/`.
+- Genera `exports/prepared_clips/prepared_manifest.json`.
+- Reporta warnings para clips demasiado cortos.
+- No descarga videos.
+- No llama a Pexels.
+- No llama a Ollama/Gemini/OpenAI.
+- No renderiza `exports/preview_video.mp4`.
 
 ## Tests esperados
 
 ```bash
-.venv/bin/python -m pytest tests/test_placeholder_generator.py
+.venv/bin/python -m pytest tests/test_clip_preparer.py
 .venv/bin/python -m pytest tests -q
 ```
 
@@ -228,9 +248,11 @@ Deben pasar.
 
 ## Fuera de alcance
 
-- Renderizar `exports/preview_video.mp4`.
-- Recortar clips reales.
-- Preparar clips en `exports/prepared_clips/`.
-- Actualizar `timeline.json` con paths de placeholder.
-- Generar audio, música, subtítulos o voz.
+- Renderizar video preliminar final.
+- Unir clips en un solo `.mp4`.
+- Agregar audio, música, voz o subtítulos.
+- Descargar clips.
+- Buscar nuevos assets.
+- Hacer loop automático.
+- Congelar último frame automáticamente.
 - Crear UI nueva.
