@@ -15,11 +15,12 @@ script.md
   → search    → data/pexels_results.json
   → score     → data/scored_results.json
   → panel     → data/selected_assets.json
+  → export    → exports/clips/ + exports/selected_broll.zip
   → resolve   → data/resolved_assets.json
   → timeline  → data/timeline.json
   → missing   → data/missing_scenes.json
   → placeholders → exports/placeholders/
-  → export    → exports/selected_broll.zip
+  → prepare   → exports/prepared_clips/
 ```
 
 Cada fase lee/escribe JSON, así que puedes retomar desde cualquier punto.
@@ -296,6 +297,37 @@ Salida:
 
 Requiere `ffmpeg` instalado. Esta fase no descarga clips, no modifica el
 timeline, no recorta assets reales y no renderiza el video final.
+
+
+## Preparar clips por duración
+
+Esta fase toma el timeline y genera una versión lista de cada escena con la
+duración exacta del guion.
+
+```bash
+python3 main.py prepare
+```
+
+Entrada:
+
+- `data/timeline.json`
+- `exports/clips/`
+- `exports/placeholders/`
+
+Salida:
+
+- `exports/prepared_clips/`
+- `exports/prepared_clips/prepared_manifest.json`
+
+Reglas principales:
+
+- si el clip es más largo que la escena, lo recorta;
+- si el clip tiene duración suficiente, genera `scene_XX_ready.mp4`;
+- si falta el clip real, usa el placeholder de esa escena cuando exista;
+- si el clip es demasiado corto y no hay placeholder, lo reporta como warning.
+
+Requiere `ffmpeg` y `ffprobe` instalados. Esta fase no descarga clips, no llama
+a Pexels, no llama a IA y no renderiza el video preliminar final.
 
 ## Reglas de scoring
 

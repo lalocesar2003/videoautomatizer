@@ -31,6 +31,7 @@ EXPORTS_DIR = Path("exports")
 EXPORT_CLIPS_DIR = EXPORTS_DIR / "clips"
 SELECTED_BROLL_ZIP_PATH = EXPORTS_DIR / "selected_broll.zip"
 PLACEHOLDERS_DIR = EXPORTS_DIR / "placeholders"
+PREPARED_CLIPS_DIR = EXPORTS_DIR / "prepared_clips"
 
 
 def read_script() -> str:
@@ -358,6 +359,40 @@ def run_placeholders() -> dict:
     return manifest
 
 
+def run_prepare() -> dict:
+    from preparation.clip_preparer import prepare_clips
+
+    timeline_data = load_json(TIMELINE_PATH)
+
+    manifest = prepare_clips(
+        timeline_data=timeline_data,
+        clips_dir=EXPORT_CLIPS_DIR,
+        placeholders_dir=PLACEHOLDERS_DIR,
+        output_dir=PREPARED_CLIPS_DIR,
+    )
+
+    summary = manifest["summary"]
+
+    print("\n✅ Clips preparados")
+    print(f"Carpeta: {PREPARED_CLIPS_DIR}")
+    print(f"Preparados: {summary['prepared_count']}")
+    print(f"Warnings: {summary['warning_count']}")
+    print(f"Duración total: {summary['total_duration_seconds']}s")
+
+    for item in manifest["prepared_clips"]:
+        print(
+            f"Escena {item['scene']} → "
+            f"{item['strategy']} → "
+            f"{item['duration_seconds']}s → "
+            f"{item['output_path']}"
+        )
+
+    for warning in manifest["warnings"]:
+        print(f"⚠️ Escena {warning['scene']}: {warning['reason']}")
+
+    return manifest
+
+
 def run_all() -> None:
     print("\n🚀 Ejecutando flujo completo")
     run_parse()
@@ -385,6 +420,7 @@ def main():
             "timeline",
             "missing",
             "placeholders",
+            "prepare",
             "all",
         ],
         help=(
@@ -399,6 +435,7 @@ def main():
             "timeline: genera timeline.json | "
             "missing: genera missing_scenes.json | "
             "placeholders: genera clips placeholder | "
+            "prepare: genera clips preparados por duración | "
             "all: ejecuta parse + classify + search + score"
         ),
     )
@@ -437,6 +474,9 @@ def main():
 
     if args.command == "placeholders":
         run_placeholders()
+
+    if args.command == "prepare":
+        run_prepare()
 
     if args.command == "all":
         run_all()
