@@ -21,6 +21,7 @@ script.md
   → missing   → data/missing_scenes.json
   → placeholders → exports/placeholders/
   → prepare   → exports/prepared_clips/
+  → render    → exports/preview_video.mp4
 ```
 
 Cada fase lee/escribe JSON, así que puedes retomar desde cualquier punto.
@@ -328,6 +329,33 @@ Reglas principales:
 
 Requiere `ffmpeg` y `ffprobe` instalados. Esta fase no descarga clips, no llama
 a Pexels, no llama a IA y no renderiza el video preliminar final.
+
+
+## Renderizar video preliminar
+
+Después de preparar clips, puedes unir las escenas en un primer video de revisión:
+
+```bash
+python3 main.py render
+```
+
+Entrada:
+
+- `data/timeline.json`
+- `exports/prepared_clips/`
+- `exports/placeholders/`
+
+Salida:
+
+- `exports/preview_video.mp4`
+- `exports/preview_manifest.json`
+
+El render usa `scene_XX_ready.mp4` cuando existe y cae al placeholder de la
+misma escena si falta el clip preparado. Normaliza los clips a formato vertical
+`1080x1920`, 24 fps, H.264 y sin audio para que la concatenación sea estable.
+
+Esta fase no agrega voz, música, subtítulos ni transiciones avanzadas. Es un
+preview visual listo para revisar antes de la edición final.
 
 ## Reglas de scoring
 
