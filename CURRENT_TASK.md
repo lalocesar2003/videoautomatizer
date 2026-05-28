@@ -2,28 +2,35 @@
 
 ## Tarea actual
 
-Issue #24 — Preparar clips recortados según duración del guion.
+Issue #25 — Renderizar video preliminar sin audio final.
 
 Branch sugerida:
 
 ```bash
-feature/24-prepare-clips
+feature/25-preview-render
 ```
 
 ## Objetivo
 
-Tomar los assets disponibles para cada escena y generar versiones preparadas con la duración exacta definida por el guion.
+Leer el timeline y los clips preparados para generar un primer video preliminar en orden, sin audio final, sin subtítulos finales y sin edición fina.
 
-Esta fase debe producir clips listos para que la siguiente fase pueda renderizar `exports/preview_video.mp4` sin tener que decidir duraciones.
+Esta fase debe producir:
+
+```txt
+exports/preview_video.mp4
+```
+
+El video preliminar debe servir como base visual para revisar ritmo, orden de escenas y cobertura de assets antes de agregar voz, música, subtítulos o edición final.
 
 ## Contexto importante
 
-- El issue #21 genera `data/timeline.json` con el orden y duración de cada escena.
-- El issue #22 detecta escenas faltantes en `data/missing_scenes.json`.
+- El issue #21 genera `data/timeline.json`.
 - El issue #23 genera placeholders en `exports/placeholders/`.
-- El issue #24 no renderiza el video final.
-- El issue #24 no descarga assets.
-- El issue #24 no modifica clips originales.
+- El issue #24 genera clips preparados en `exports/prepared_clips/` con duración exacta por escena.
+- Esta fase une clips ya preparados o placeholders.
+- Esta fase no decide assets nuevos.
+- Esta fase no recorta clips originales.
+- Esta fase no genera audio final.
 
 ## Entradas
 
@@ -33,38 +40,42 @@ Archivo principal:
 data/timeline.json
 ```
 
-Carpeta de clips descargados o copiados:
-
-```txt
-exports/clips/
-```
-
-Carpeta de placeholders disponible como respaldo:
-
-```txt
-exports/placeholders/
-```
-
-## Salida
-
-Carpeta de clips preparados:
+Carpeta principal de clips listos:
 
 ```txt
 exports/prepared_clips/
 ```
 
-Ejemplo:
+Carpeta de respaldo:
 
 ```txt
-exports/prepared_clips/scene_01_ready.mp4
-exports/prepared_clips/scene_02_ready.mp4
-exports/prepared_clips/scene_03_ready.mp4
+exports/placeholders/
+```
+
+Manifest opcional de preparación:
+
+```txt
+exports/prepared_clips/prepared_manifest.json
+```
+
+## Salida
+
+Archivo final de esta fase:
+
+```txt
+exports/preview_video.mp4
 ```
 
 Manifest recomendado:
 
 ```txt
-exports/prepared_clips/prepared_manifest.json
+exports/preview_manifest.json
+```
+
+Archivo temporal permitido:
+
+```txt
+exports/concat_list.txt
 ```
 
 ## Estructura esperada del manifest
@@ -72,84 +83,80 @@ exports/prepared_clips/prepared_manifest.json
 ```json
 {
   "project_title": "El Fin del Excel para Cobrar",
-  "generated_at": "2026-05-26T00:00:00Z",
-  "prepared_clips": [
+  "generated_at": "2026-05-27T00:00:00Z",
+  "output_path": "exports/preview_video.mp4",
+  "timeline": [
     {
       "scene": 1,
-      "status": "ready",
-      "source_path": "exports/clips/scene_01_clip_01.mp4",
-      "output_path": "exports/prepared_clips/scene_01_ready.mp4",
+      "source_path": "exports/prepared_clips/scene_01_ready.mp4",
       "duration_seconds": 3,
-      "source_duration_seconds": 10.2,
-      "strategy": "trim"
+      "status": "ready",
+      "strategy": "prepared_clip"
+    },
+    {
+      "scene": 3,
+      "source_path": "exports/placeholders/scene_03_placeholder.mp4",
+      "duration_seconds": 12,
+      "status": "placeholder",
+      "strategy": "placeholder_fallback"
     }
   ],
   "warnings": [],
   "summary": {
     "scene_count": 5,
-    "prepared_count": 5,
+    "rendered_scene_count": 5,
     "warning_count": 0,
     "total_duration_seconds": 45
   }
 }
 ```
 
-## Reglas principales
+## Reglas de selección de fuente
 
-Para cada escena de `data/timeline.json`:
+Para cada escena de `data/timeline.json`, en orden:
 
-1. Leer `duration_seconds`.
-2. Ubicar el asset fuente.
-3. Generar un archivo preparado en `exports/prepared_clips/`.
-4. Nombrar el archivo de forma determinística:
+1. Usar `exports/prepared_clips/scene_XX_ready.mp4` si existe.
+2. Si no existe, usar `exports/placeholders/scene_XX_placeholder.mp4` si existe.
+3. Si no existe ninguno, fallar con mensaje claro indicando la escena faltante.
 
-```txt
-scene_XX_ready.mp4
-```
+No buscar en `exports/clips/` directamente en esta fase. Los clips reales deben pasar primero por `python3 main.py prepare`.
 
-## Fuentes permitidas
+## Reglas de render
 
-La fuente puede venir de:
+- Unir clips en el orden del guion.
+- Respetar `duration_seconds` de cada escena.
+- Usar placeholders cuando falte un clip preparado.
+- No agregar audio final.
+- No agregar subtítulos finales.
+- No agregar música final.
+- No llamar a Pexels.
+- No llamar a Ollama/Gemini/OpenAI.
+- No descargar videos.
+- No modificar `data/timeline.json`.
+- No modificar clips preparados.
+- No modificar placeholders.
 
-1. `clip_path` del timeline, si existe y apunta a un archivo real.
-2. Placeholder correspondiente en `exports/placeholders/scene_XX_placeholder.mp4`, si la escena no tiene clip real.
+## Regla técnica importante
 
-No se debe buscar en Pexels ni descargar nada en esta fase.
+Para evitar errores de concatenación, el render puede normalizar los clips a un formato uniforme antes de unirlos.
 
-## Reglas de duración
-
-Si `source_duration > scene_duration`:
-
-- recortar desde el inicio hasta `scene_duration`.
-- estrategia: `trim`.
-
-Si `source_duration == scene_duration` o la diferencia es mínima:
-
-- generar/copiar una versión preparada.
-- estrategia: `copy` o `normalize`.
-
-Si `source_duration < scene_duration`:
-
-- para MVP, no hacer loop automático.
-- marcar warning claro.
-- si existe placeholder para esa escena, se permite usarlo como respaldo.
-- si no existe placeholder, marcar la escena como `needs_manual_review`.
-
-Estrategias posibles:
+Formato recomendado para MVP:
 
 ```txt
-trim
-copy
-placeholder
-manual_review
+1080x1920
+24 fps
+H.264
+pix_fmt yuv420p
+sin audio
 ```
 
-Estrategias fuera de alcance por ahora:
+Se permite crear archivos temporales dentro de:
 
 ```txt
-loop
-freeze_last_frame
+exports/render_tmp/
 ```
+
+Estos archivos temporales no deben versionarse.
 
 ## Dependencia externa
 
@@ -166,35 +173,38 @@ Reglas:
 Agregar comando:
 
 ```bash
-python3 main.py prepare
+python3 main.py render
+```
+
+Debe generar:
+
+```txt
+exports/preview_video.mp4
+exports/preview_manifest.json
 ```
 
 Salida esperada en terminal:
 
 ```txt
-✅ Clips preparados
-Carpeta: exports/prepared_clips
-Preparados: 5
-Warnings: 0
+✅ Video preliminar generado
+Archivo: exports/preview_video.mp4
+Escenas renderizadas: 5
 Duración total: 45s
-```
-
-Si hay clips cortos:
-
-```txt
-⚠️ Escena 2: clip más corto que la duración objetivo. Requiere revisión manual.
+Warnings: 0
 ```
 
 ## Archivos permitidos para modificar o crear
 
 - `CURRENT_TASK.md`
 - `main.py`
-- `preparation/__init__.py`
-- `preparation/clip_preparer.py`
-- `tests/test_clip_preparer.py`
+- `rendering/__init__.py`
+- `rendering/preview_renderer.py`
+- `tests/test_preview_renderer.py`
 - `README.md`
-- `exports/prepared_clips/`
-- `exports/prepared_clips/prepared_manifest.json`
+- `exports/preview_video.mp4`
+- `exports/preview_manifest.json`
+- `exports/concat_list.txt`
+- `exports/render_tmp/`
 
 ## No tocar
 
@@ -213,6 +223,7 @@ Si hay clips cortos:
 - `timeline/timeline_generator.py`
 - `missing/missing_scene_detector.py`
 - `placeholders/placeholder_generator.py`
+- `preparation/clip_preparer.py`
 - `script.md`
 - `data/scenes.json`
 - `data/visual_plan.json`
@@ -225,22 +236,24 @@ Si hay clips cortos:
 
 ## Criterios de aceptación
 
-- `python3 main.py prepare` genera `exports/prepared_clips/`.
-- Crea un archivo `scene_XX_ready.mp4` por cada escena que pueda resolverse con clip real o placeholder.
-- Cada clip preparado dura lo mismo que `duration_seconds` de su escena.
-- No modifica los clips originales en `exports/clips/`.
-- No modifica placeholders originales en `exports/placeholders/`.
-- Genera `exports/prepared_clips/prepared_manifest.json`.
-- Reporta warnings para clips demasiado cortos.
-- No descarga videos.
+- `python3 main.py render` genera `exports/preview_video.mp4`.
+- El video respeta el orden de escenas de `data/timeline.json`.
+- Usa `exports/prepared_clips/scene_XX_ready.mp4` cuando existe.
+- Usa `exports/placeholders/scene_XX_placeholder.mp4` cuando falta el preparado.
+- Respeta `duration_seconds` por escena.
+- No falla si hay placeholders.
+- Genera `exports/preview_manifest.json`.
+- No agrega audio final.
+- No agrega subtítulos finales.
 - No llama a Pexels.
-- No llama a Ollama/Gemini/OpenAI.
-- No renderiza `exports/preview_video.mp4`.
+- No llama a IA.
+- No descarga videos.
+- El resultado queda listo para agregar audio después.
 
 ## Tests esperados
 
 ```bash
-.venv/bin/python -m pytest tests/test_clip_preparer.py
+.venv/bin/python -m pytest tests/test_preview_renderer.py
 .venv/bin/python -m pytest tests -q
 ```
 
@@ -248,11 +261,11 @@ Deben pasar.
 
 ## Fuera de alcance
 
-- Renderizar video preliminar final.
-- Unir clips en un solo `.mp4`.
-- Agregar audio, música, voz o subtítulos.
-- Descargar clips.
-- Buscar nuevos assets.
-- Hacer loop automático.
-- Congelar último frame automáticamente.
-- Crear UI nueva.
+- Agregar voz en off.
+- Agregar música.
+- Agregar subtítulos.
+- Agregar overlays finales.
+- Transiciones avanzadas.
+- Exportar versiones para múltiples plataformas.
+- Editor notes.
+- UI nueva.

@@ -32,6 +32,10 @@ EXPORT_CLIPS_DIR = EXPORTS_DIR / "clips"
 SELECTED_BROLL_ZIP_PATH = EXPORTS_DIR / "selected_broll.zip"
 PLACEHOLDERS_DIR = EXPORTS_DIR / "placeholders"
 PREPARED_CLIPS_DIR = EXPORTS_DIR / "prepared_clips"
+RENDER_TMP_DIR = EXPORTS_DIR / "render_tmp"
+CONCAT_LIST_PATH = EXPORTS_DIR / "concat_list.txt"
+PREVIEW_VIDEO_PATH = EXPORTS_DIR / "preview_video.mp4"
+PREVIEW_MANIFEST_PATH = EXPORTS_DIR / "preview_manifest.json"
 
 
 def read_script() -> str:
@@ -393,6 +397,42 @@ def run_prepare() -> dict:
     return manifest
 
 
+def run_render() -> dict:
+    from rendering.preview_renderer import render_preview_video
+
+    timeline_data = load_json(TIMELINE_PATH)
+
+    manifest = render_preview_video(
+        timeline_data=timeline_data,
+        prepared_clips_dir=PREPARED_CLIPS_DIR,
+        placeholders_dir=PLACEHOLDERS_DIR,
+        output_path=PREVIEW_VIDEO_PATH,
+        temp_dir=RENDER_TMP_DIR,
+        concat_list_path=CONCAT_LIST_PATH,
+        manifest_path=PREVIEW_MANIFEST_PATH,
+    )
+
+    summary = manifest["summary"]
+
+    print("\n✅ Video preliminar generado")
+    print(f"Archivo: {manifest['output_path']}")
+    print(f"Escenas renderizadas: {summary['rendered_scene_count']}")
+    print(f"Duración total: {summary['total_duration_seconds']}s")
+    print(f"Warnings: {summary['warning_count']}")
+
+    for item in manifest["timeline"]:
+        print(
+            f"Escena {item['scene']} → "
+            f"{item['strategy']} → "
+            f"{item['duration_seconds']}s"
+        )
+
+    for warning in manifest["warnings"]:
+        print(f"⚠️ Escena {warning['scene']}: {warning['reason']}")
+
+    return manifest
+
+
 def run_all() -> None:
     print("\n🚀 Ejecutando flujo completo")
     run_parse()
@@ -421,6 +461,7 @@ def main():
             "missing",
             "placeholders",
             "prepare",
+            "render",
             "all",
         ],
         help=(
@@ -436,6 +477,7 @@ def main():
             "missing: genera missing_scenes.json | "
             "placeholders: genera clips placeholder | "
             "prepare: genera clips preparados por duración | "
+            "render: genera preview_video.mp4 | "
             "all: ejecuta parse + classify + search + score"
         ),
     )
@@ -477,6 +519,9 @@ def main():
 
     if args.command == "prepare":
         run_prepare()
+
+    if args.command == "render":
+        run_render()
 
     if args.command == "all":
         run_all()
