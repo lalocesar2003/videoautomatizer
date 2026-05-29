@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+from panel.pipeline_control import render_pipeline_control
 from selection.asset_selector import (
     LOCAL_ASSET_CHOICE,
     SUPPORTED_VIDEO_EXTENSIONS,
@@ -19,6 +20,11 @@ VISUAL_PLAN_PATH = Path("data/visual_plan.json")
 SCORED_RESULTS_PATH = Path("data/scored_results.json")
 SELECTED_ASSETS_PATH = Path("data/selected_assets.json")
 LOCAL_ASSETS_DIR = Path("local_assets")
+SELECTION_INPUT_PATHS = [
+    SCENES_PATH,
+    VISUAL_PLAN_PATH,
+    SCORED_RESULTS_PATH,
+]
 
 
 def run_streamlit_panel(
@@ -36,7 +42,24 @@ def run_streamlit_panel(
     )
 
     st.title("🎬 B-roll selector")
-    st.caption("Revisa clips puntuados, abre previews y guarda tu selección manual.")
+    st.caption("Controla el pipeline, revisa clips puntuados y guarda tu selección manual.")
+
+    render_pipeline_control(st)
+    st.markdown("---")
+    st.header("🎞️ Selección manual de assets")
+
+    missing_inputs = get_missing_selection_inputs(SELECTION_INPUT_PATHS)
+
+    if missing_inputs:
+        st.warning(
+            "La selección manual se activa cuando existan estos archivos: "
+            + ", ".join(f"`{path}`" for path in missing_inputs)
+        )
+        st.info(
+            "Ejecuta primero Parsear guion, Clasificar escenas, Buscar en Pexels "
+            "y Puntuar clips desde el control del pipeline."
+        )
+        return
 
     scenes_data = load_json(scenes_path)
     visual_plan_data = load_json(visual_plan_path)
@@ -89,6 +112,10 @@ def run_streamlit_panel(
         st.json(selected_assets)
 
     st.info("Fase 5A: no se descargan clips y no se genera ZIP todavía.")
+
+
+def get_missing_selection_inputs(paths: list[Path]) -> list[Path]:
+    return [path for path in paths if not path.exists()]
 
 
 def render_scenes(
