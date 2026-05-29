@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 from panel.guided_flow import (
     LOCAL_ASSET_CHOICE,
+    PREVIEW_WAIT_MESSAGE,
+    build_selection_signature,
     build_clip_links,
     build_scene_options,
     build_scene_tab_labels,
@@ -13,8 +15,12 @@ from panel.guided_flow import (
     get_missing_paths,
     get_option_index,
     get_option_label,
+    is_preview_enabled,
+    mark_selection_confirmed,
     prepare_local_assets_for_selection,
+    run_preview_pipeline_with_progress,
     run_phase_sequence,
+    sync_selection_confirmation,
 )
 from panel.pipeline_control import PhaseRunResult
 
@@ -24,6 +30,48 @@ class FakeUpload:
 
     def getvalue(self) -> bytes:
         return b"video"
+
+
+class FakeProgress:
+    def __init__(self) -> None:
+        self.values = []
+
+    def progress(self, value: float) -> None:
+        self.values.append(value)
+
+
+class FakeStatus:
+    def __init__(self) -> None:
+        self.messages = []
+
+    def write(self, value: str) -> None:
+        self.messages.append(value)
+
+
+class FakeStreamlit:
+    def __init__(self) -> None:
+        self.session_state = {}
+        self.infos = []
+        self.successes = []
+        self.errors = []
+        self.progress_bar = FakeProgress()
+        self.status = FakeStatus()
+
+    def info(self, value: str) -> None:
+        self.infos.append(value)
+
+    def success(self, value: str) -> None:
+        self.successes.append(value)
+
+    def error(self, value: str) -> None:
+        self.errors.append(value)
+
+    def progress(self, value: float) -> FakeProgress:
+        self.progress_bar.progress(value)
+        return self.progress_bar
+
+    def empty(self) -> FakeStatus:
+        return self.status
 
 
 class GuidedFlowTests(unittest.TestCase):
@@ -125,6 +173,86 @@ class GuidedFlowTests(unittest.TestCase):
             self.assertTrue(local_path.name.startswith("scene_02_demo_video"))
             self.assertEqual(local_path.read_bytes(), b"video")
 
+    def test_build_selection_signature_tracks_choices_and_local_assets(self) -> None:
+        signature = build_selection_signature(
+            choices_by_scene={
+                2: LOCAL_ASSET_CHOICE,
+                1: "clip-1",
+            },
+            local_uploads_by_scene={2: None},
+            previous_local_assets={2: {"local_path": "local_assets/scene_02.mp4"}},
+        )
+
+        self.assertEqual(
+            signature,
+            (
+                (1, "clip-1", ""),
+                (2, LOCAL_ASSET_CHOICE, "local_assets/scene_02.mp4"),
+            ),
+        )
+
+    def test_build_selection_signature_tracks_uploaded_filename(self) -> None:
+        signature = build_selection_signature(
+            choices_by_scene={2: LOCAL_ASSET_CHOICE},
+            local_uploads_by_scene={2: FakeUpload()},
+            previous_local_assets={},
+        )
+
+        self.assertEqual(signature, ((2, LOCAL_ASSET_CHOICE, "demo video.mp4"),))
+
+    def test_preview_requires_existing_and_confirmed_selection(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            selected_assets_path = Path(temp_dir) / "data" / "selected_assets.json"
+
+            self.assertFalse(
+                is_preview_enabled(
+                    selected_assets_path=selected_assets_path,
+                    selection_confirmed=True,
+                )
+            )
+
+            selected_assets_path.parent.mkdir(parents=True)
+            selected_assets_path.write_text("{}", encoding="utf-8")
+
+            self.assertFalse(
+                is_preview_enabled(
+                    selected_assets_path=selected_assets_path,
+                    selection_confirmed=False,
+                )
+            )
+            self.assertTrue(
+                is_preview_enabled(
+                    selected_assets_path=selected_assets_path,
+                    selection_confirmed=True,
+                )
+            )
+
+    def test_sync_selection_confirmation_resets_when_selection_changes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            st = FakeStreamlit()
+            selected_assets_path = Path(temp_dir) / "selected_assets.json"
+            selected_assets_path.write_text("{}", encoding="utf-8")
+            original_signature = ((1, "clip-1", ""),)
+            changed_signature = ((1, "clip-2", ""),)
+
+            mark_selection_confirmed(st, original_signature)
+
+            self.assertTrue(
+                sync_selection_confirmation(
+                    st=st,
+                    selection_signature=original_signature,
+                    selected_assets_path=selected_assets_path,
+                )
+            )
+            self.assertFalse(
+                sync_selection_confirmation(
+                    st=st,
+                    selection_signature=changed_signature,
+                    selected_assets_path=selected_assets_path,
+                )
+            )
+            self.assertFalse(st.session_state["guided_selection_confirmed"])
+
     def test_run_phase_sequence_stops_on_first_failure(self) -> None:
         calls = []
 
@@ -152,6 +280,56 @@ class GuidedFlowTests(unittest.TestCase):
         self.assertEqual(calls, ["export", "resolve"])
         self.assertEqual(len(results), 2)
         self.assertFalse(results[-1].success)
+
+    def test_run_preview_pipeline_with_progress_reports_steps(self) -> None:
+        calls = []
+
+        def fake_run_phase(phase_key: str):
+            calls.append(phase_key)
+            return PhaseRunResult(
+                key=phase_key,
+                label=phase_key,
+                success=True,
+                message="ok",
+                output_path=Path("out.json"),
+            )
+
+        st = FakeStreamlit()
+
+        with patch("panel.guided_flow.run_phase", side_effect=fake_run_phase):
+            results = run_preview_pipeline_with_progress(st)
+
+        self.assertEqual(
+            calls,
+            ["export", "resolve", "timeline", "missing", "placeholders", "prepare", "render"],
+        )
+        self.assertEqual(len(results), 7)
+        self.assertIn(PREVIEW_WAIT_MESSAGE, st.infos)
+        self.assertEqual(st.progress_bar.values[-1], 1.0)
+        self.assertIn("1/7 Exportando assets…", st.status.messages)
+        self.assertIn("Preview generado.", st.status.messages)
+
+    def test_run_preview_pipeline_with_progress_stops_on_failure(self) -> None:
+        calls = []
+
+        def fake_run_phase(phase_key: str):
+            calls.append(phase_key)
+            return PhaseRunResult(
+                key=phase_key,
+                label=phase_key,
+                success=phase_key != "timeline",
+                message="falló timeline" if phase_key == "timeline" else "ok",
+                output_path=Path("out.json"),
+            )
+
+        st = FakeStreamlit()
+
+        with patch("panel.guided_flow.run_phase", side_effect=fake_run_phase):
+            results = run_preview_pipeline_with_progress(st)
+
+        self.assertEqual(calls, ["export", "resolve", "timeline"])
+        self.assertEqual(len(results), 3)
+        self.assertTrue(any("falló timeline" in error for error in st.errors))
 
     def test_build_clip_links_returns_preview_and_page_links(self) -> None:
         links = build_clip_links(

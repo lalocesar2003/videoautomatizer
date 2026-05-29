@@ -164,9 +164,11 @@ local_assets/
 
 Botones principales:
 
-- `Confirmar selección` guarda los assets elegidos.
-- `Preview` ejecuta el flujo necesario para refrescar `exports/preview_video.mp4`.
-- `Generar Video preliminar` genera el mismo preview visual sin audio final.
+- `Confirmar selección` guarda los assets elegidos y desbloquea el preview.
+- `Preview` ejecuta el flujo necesario para refrescar `exports/preview_video.mp4`; antes de correr avisa que puede demorar entre 2 y 4 minutos y muestra progreso por fases.
+- `Descargar video` aparece cuando existe `exports/preview_video.mp4`.
+
+`Preview` no guarda la selección automáticamente. Si cambias clips o subes un nuevo video local, confirma la selección otra vez antes de generar el preview.
 
 Si necesitas depurar fase por fase, abre:
 
