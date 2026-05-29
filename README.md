@@ -128,44 +128,56 @@ python3 main.py all         # parse + classify + search + score
 
 ## Panel Streamlit
 
-El panel local funciona como tablero de control del pipeline y como pantalla de
-selección manual:
+El panel local ahora está organizado como flujo guiado:
 
 ```bash
 streamlit run app.py
 ```
 
-Desde el panel puedes ejecutar fases individuales con botones:
+La pantalla principal separa dos zonas:
 
-```text
-parse → classify → search → score → export → resolve → timeline → missing → placeholders → prepare → render
-```
+1. **Crear guion**
+   - describir la idea del video;
+   - editar el guion;
+   - aprobar y guardar `script.md`.
 
-También muestra si el output principal de cada fase está listo, pendiente o si
-la ejecución falló. Si existe `exports/preview_video.mp4`, el panel lo muestra
-como preview.
+2. **Crear video**
+   - revisar escenas en pestañas;
+   - seleccionar máximo un asset por escena;
+   - ver thumbnails pequeños de clips sugeridos;
+   - subir o reemplazar video local cuando la escena lo requiera;
+   - generar preview/video preliminar.
 
-La selección manual se activa cuando existen estas entradas:
+Las escenas sin clips de Pexels o que requieren grabación propia muestran
+`Tarea manual requerida`, pero no bloquean el flujo: puedes subir un video local
+para resolverlas.
 
-- `data/scenes.json`
-- `data/visual_plan.json`
-- `data/scored_results.json`
-
-Salida de selección manual:
+El panel guarda la selección en:
 
 - `data/selected_assets.json`
 
-El panel permite elegir un clip de Pexels, dejar la escena como tarea manual
-o subir un video propio como asset local. Cada escena admite máximo un asset
-seleccionado.
-
-Nota: el botón único para ejecutar todo el flujo completo todavía no existe; por
-ahora cada fase se ejecuta de forma individual para mantener control y debug.
-
-Los videos locales se guardan en:
+Y los videos locales en:
 
 ```text
 local_assets/
+```
+
+Botones principales:
+
+- `Confirmar selección` guarda los assets elegidos.
+- `Preview` ejecuta el flujo necesario para refrescar `exports/preview_video.mp4`.
+- `Generar Video preliminar` genera el mismo preview visual sin audio final.
+
+Si necesitas depurar fase por fase, abre:
+
+```text
+Modo avanzado / Debug
+```
+
+Ahí siguen disponibles los botones técnicos individuales:
+
+```text
+parse → classify → search → score → export → resolve → timeline → missing → placeholders → prepare → render
 ```
 
 Estructura esperada para un asset local en `data/selected_assets.json`:
@@ -181,8 +193,6 @@ Estructura esperada para un asset local en `data/selected_assets.json`:
   }
 }
 ```
-
-Esta fase no descarga clips y no genera ZIP.
 
 Para evitar telemetry de Streamlit al ejecutar:
 
