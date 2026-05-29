@@ -128,25 +128,39 @@ python3 main.py all         # parse + classify + search + score
 
 ## Panel Streamlit
 
-La Fase 5A abre un panel local para revisar clips puntuados y guardar selección manual:
+El panel local funciona como tablero de control del pipeline y como pantalla de
+selección manual:
 
 ```bash
 streamlit run app.py
 ```
 
-Entrada:
+Desde el panel puedes ejecutar fases individuales con botones:
+
+```text
+parse → classify → search → score → export → resolve → timeline → missing → placeholders → prepare → render
+```
+
+También muestra si el output principal de cada fase está listo, pendiente o si
+la ejecución falló. Si existe `exports/preview_video.mp4`, el panel lo muestra
+como preview.
+
+La selección manual se activa cuando existen estas entradas:
 
 - `data/scenes.json`
 - `data/visual_plan.json`
 - `data/scored_results.json`
 
-Salida:
+Salida de selección manual:
 
 - `data/selected_assets.json`
 
 El panel permite elegir un clip de Pexels, dejar la escena como tarea manual
 o subir un video propio como asset local. Cada escena admite máximo un asset
 seleccionado.
+
+Nota: el botón único para ejecutar todo el flujo completo todavía no existe; por
+ahora cada fase se ejecuta de forma individual para mantener control y debug.
 
 Los videos locales se guardan en:
 
