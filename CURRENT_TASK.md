@@ -2,343 +2,160 @@
 
 ## Tarea actual
 
-Issue #27 — Rediseñar Streamlit como flujo guiado de guion y video.
+Issue #28 — Clarificar acciones finales de Preview y descarga.
 
 Branch sugerida:
 
 ```bash
-feature/27-guided-streamlit-flow
+feature/28-preview-actions
 ```
 
 ## Objetivo
 
-Reorganizar la interfaz de Streamlit para que deje de sentirse como una lista técnica de comandos y se convierta en un flujo guiado para el usuario.
-
-La UI debe separar claramente:
+Corregir la confusión en la UI guiada alrededor de los botones finales:
 
 ```txt
-1. Creación / aprobación de guion
-2. Creación del video por escenas
-3. Acciones finales: Preview y Generar video
-```
-
-El backend ya funciona. Esta tarea se enfoca en experiencia, orden visual y conexión limpia con las funciones existentes.
-
-## Contexto importante
-
-El issue #26 agregó un panel técnico de control del pipeline, pero resultó confuso como pantalla principal.
-
-El nuevo diseño debe usar una estructura más humana:
-
-```txt
-Crear guion
-↓
-Revisar escenas por pestañas
-↓
-Elegir clips / subir videos locales
-↓
+Confirmar selección
 Preview
-↓
-Generar video
+Generar Video preliminar / Descargar
 ```
 
-La pantalla técnica del pipeline puede mantenerse, pero debe quedar escondida en una sección tipo:
+La experiencia actual permite que `Preview` guarde selección y genere el video al mismo tiempo, lo que no deja claro qué hizo el usuario ni cuánto falta esperar.
+
+Esta tarea debe hacer que el flujo final sea explícito, seguro y entendible.
+
+## Problemas detectados
+
+1. `Preview` no comunica bien que puede tardar.
+2. `Preview` guarda selección automáticamente, haciendo redundante `Confirmar selección`.
+3. No queda claro si el usuario debe confirmar antes de generar.
+4. `Generar Video preliminar` se siente duplicado con `Preview`.
+5. Falta un mensaje claro de salida/descarga cuando el video ya fue generado.
+
+## Decisión de UX
+
+El flujo correcto debe ser:
 
 ```txt
-Modo avanzado / Debug
+1. El usuario elige clips o sube videos locales.
+2. El usuario presiona Confirmar selección.
+3. Recién entonces se desbloquea Preview.
+4. Preview ejecuta el pipeline visual con progreso por fases.
+5. Al terminar, se muestra el video y una opción para descargarlo.
 ```
 
-No debe ser la experiencia principal.
+## Reglas principales
 
-## Referencia visual del usuario
+### Confirmar selección
 
-El diseño esperado tiene estas ideas:
+- Debe ser el único botón que guarda `data/selected_assets.json`.
+- Debe mostrar éxito claro al guardar.
+- Debe marcar en la sesión que la selección fue confirmada.
+- Si el usuario cambia opciones después de confirmar, la UI debe pedir confirmar de nuevo o, como mínimo, mostrar que debe confirmar antes de generar preview.
 
-1. Una sección “Describe tu guion”.
-2. Una sección “Edita tu guion”.
-3. Una sección separada para creación del video.
-4. Escenas organizadas por pestañas:
+### Preview
+
+- No debe guardar selección automáticamente.
+- Debe requerir que exista `data/selected_assets.json`.
+- Idealmente debe requerir confirmación en sesión antes de ejecutarse.
+- Si falta selección confirmada, debe mostrar:
 
 ```txt
-Escena 1 | Escena 2 | Escena 3 | Escena 4 | Escena 5
+Primero confirma la selección de assets.
 ```
 
-5. Cada escena muestra:
+- Debe mostrar un mensaje antes de ejecutar:
 
 ```txt
-Tiempo
-Sección
-Texto en pantalla
-Visual
+Esto puede demorar entre 2 y 4 minutos según la cantidad y peso de los clips.
 ```
 
-6. Si hay clips sugeridos, se muestran como opciones con thumbnail pequeño.
-7. Si una escena requiere material manual, debe mostrar claramente una zona para subir video local.
-8. Al final deben verse botones claros:
+- Debe mostrar progreso por fases, no porcentaje falso basado en tiempo.
+
+Fases sugeridas:
 
 ```txt
+1/7 Exportando assets
+2/7 Resolviendo assets
+3/7 Generando timeline
+4/7 Detectando faltantes
+5/7 Generando placeholders
+6/7 Preparando clips
+7/7 Renderizando preview
+```
+
+- Debe mostrar éxito o error por fase.
+- Si una fase falla, debe detener el flujo y mostrar el error.
+
+### Generar Video preliminar
+
+Para evitar duplicidad, se permite una de estas opciones:
+
+Opción preferida:
+
+- Reemplazar `Generar Video preliminar` por un botón/área de `Descargar video` cuando exista `exports/preview_video.mp4`.
+
+Opción aceptable:
+
+- Mantener `Generar Video preliminar`, pero debe comportarse igual que `Preview` y dejar claro que genera un video preliminar sin audio final.
+
+Para este issue, se prefiere simplificar:
+
+```txt
+Confirmar selección
 Preview
-Generar Video
+Descargar video
 ```
 
-## Objetivo de producto
+### Descargar video
 
-El usuario debe poder abrir:
-
-```bash
-streamlit run app.py
-```
-
-Y entender qué hacer sin conocer los comandos internos.
-
-La UI principal debe responder a esta lógica:
-
-```txt
-Primero crea o aprueba el guion.
-Luego revisa cada escena.
-Luego selecciona clips o sube videos locales.
-Luego genera preview/video.
-```
-
-## Estructura esperada de la UI
-
-### 1. Sección Crear guion
-
-Debe estar claramente separada de la creación del video.
-
-Debe mostrar:
-
-- título: `Describe tu guion`;
-- text area para prompt o idea general;
-- botón `Generar Guion`;
-- título: `Edita tu guion`;
-- text area editable con el guion generado o el contenido actual de `script.md`;
-- botón `Aprobar Guion`;
-- botón `Regenerar`.
-
-Reglas:
-
-- No ejecutar el pipeline de video hasta que el guion esté aprobado.
-- Si la generación automática de guion no está lista para un flujo robusto, se permite que esta sección funcione primero como editor de `script.md`.
-- `Aprobar Guion` debe guardar el contenido en `script.md`.
-- Después de aprobar, la UI puede permitir ejecutar/generar escenas.
-
-### 2. Sección Crear video
-
-Debe estar separada visualmente de la sección de guion.
-
-Debe mostrar las escenas en pestañas.
-
-Ejemplo:
-
-```txt
-Escena 1 | Escena 2 | Escena 3 | Escena 4 | Escena 5
-```
-
-Cada pestaña debe mostrar:
-
-- tiempo;
-- sección;
-- texto en pantalla;
-- visual original;
-- asset_type si existe;
-- estado de la escena;
-- acción recomendada.
-
-### 3. Opciones de clips por escena
-
-Si la escena tiene clips sugeridos de Pexels:
-
-- mostrar lista de clips disponibles;
-- cada clip debe tener thumbnail pequeño;
-- mostrar duración;
-- score;
-- autor;
-- botones/enlaces para abrir preview y Pexels si existen;
-- permitir seleccionar máximo un clip por escena.
-
-Regla visual:
-
-- el thumbnail debe ser pequeño, no ocupar toda la pantalla.
-- la selección debe ser clara.
-- evitar checkboxes múltiples si permiten más de un clip por escena.
-
-Usar preferentemente:
-
-```txt
-radio
-selectbox
-botón de selección única
-```
-
-### 4. Escenas sin clips o con tarea manual
-
-Si una escena no tiene clips Pexels o requiere grabación propia:
-
-Debe mostrar claramente:
-
-```txt
-Tarea manual requerida
-```
-
-Pero NO debe bloquear al usuario.
-
-Debe permitir subir video local.
-
-Ejemplos:
-
-- `self_recorded` → subir video del creador hablando a cámara.
-- `screen_recording` → subir grabación de pantalla.
-- escena sin sugerencias → subir video propio o dejar pendiente.
-
-La sección de subida debe decir algo como:
-
-```txt
-Subir o reemplazar video
-```
-
-Y debe guardar la selección como asset local en `data/selected_assets.json`, usando la lógica existente de assets locales.
-
-### 5. Acciones finales
-
-Al final de la sección de video debe haber botones claros:
-
-```txt
-Preview
-Generar Video
-```
-
-#### Botón Preview
-
-Objetivo:
-
-- mostrar `exports/preview_video.mp4` si ya existe;
-- o ejecutar lo mínimo necesario para refrescarlo si el usuario ya tiene assets seleccionados.
-
-Para este issue, se permite que `Preview` ejecute:
-
-```txt
-export → resolve → timeline → missing → placeholders → prepare → render
-```
-
-siempre que exista `data/selected_assets.json`.
-
-#### Botón Generar Video
-
-En este MVP, “Generar Video” puede ejecutar el mismo flujo que Preview y generar:
+Si existe:
 
 ```txt
 exports/preview_video.mp4
 ```
 
-No debe prometer video final con audio, música o subtítulos.
-
-Puede mostrarse como:
+La UI debe mostrar:
 
 ```txt
-Generar Video preliminar
+Video guardado en exports/preview_video.mp4
 ```
 
-si eso evita confusión.
-
-## Modo avanzado / Debug
-
-El panel técnico creado en issue #26 puede mantenerse, pero debe quedar debajo de un expander:
+Y, si es posible, mostrar un botón:
 
 ```txt
-Modo avanzado / Debug
+Descargar video
 ```
 
-Ahí pueden vivir los botones individuales por fase.
+usando `st.download_button`.
 
-La pantalla principal no debe abrir mostrando todos los comandos técnicos.
-
-## Flujo de usuario esperado
-
-```txt
-1. Abrir streamlit run app.py
-2. Escribir o editar guion
-3. Aprobar guion
-4. Generar/actualizar escenas si hace falta
-5. Revisar escenas por pestañas
-6. Seleccionar clip de Pexels o subir video local por escena
-7. Confirmar selección
-8. Hacer Preview
-9. Ver el video preliminar en la UI
-```
-
-## Entradas
-
-La UI puede consumir:
-
-```txt
-script.md
-data/scenes.json
-data/visual_plan.json
-data/scored_results.json
-data/selected_assets.json
-exports/preview_video.mp4
-```
-
-También puede usar outputs intermedios existentes:
-
-```txt
-data/pexels_results.json
-data/resolved_assets.json
-data/timeline.json
-data/missing_scenes.json
-exports/placeholders/
-exports/prepared_clips/
-```
-
-## Salidas
-
-La UI debe poder generar o actualizar:
-
-```txt
-script.md
-data/selected_assets.json
-exports/preview_video.mp4
-```
-
-Y, al ejecutar el flujo de preview/video:
-
-```txt
-exports/clips/
-exports/selected_broll.zip
-data/resolved_assets.json
-data/timeline.json
-data/missing_scenes.json
-exports/placeholders/
-exports/prepared_clips/
-exports/preview_manifest.json
-```
+Si `st.download_button` con el archivo local resulta incómodo o pesado, al menos mostrar claramente la ruta del archivo.
 
 ## Reglas técnicas
 
-- Reutilizar lógica existente.
-- No duplicar selección de assets si ya existe en `selection/asset_selector.py`.
-- No duplicar ejecución del pipeline si ya existen runners en `main.py` o `panel/pipeline_control.py`.
-- No tocar lógica interna del parser, clasificador, Pexels, scoring, export, resolver, timeline, missing, placeholders, preparation o rendering.
+- Reutilizar funciones existentes.
+- No tocar backend interno.
+- No modificar parser, classifier, Pexels, scoring, export, resolver, timeline, missing, placeholders, preparation ni rendering.
 - No agregar dependencias nuevas.
-- Mantener compatibilidad con Python 3.12.
-- El sistema debe seguir funcionando por terminal.
-- La UI no debe borrar `data/*.json`.
-- La UI no debe borrar outputs en `exports/`.
+- No borrar `data/*.json`.
+- No borrar outputs de `exports/`.
+- Mantener el modo avanzado/debug existente.
+- Mantener el sistema funcionando por terminal.
 
 ## Archivos permitidos para modificar o crear
 
 - `CURRENT_TASK.md`
-- `app.py`
-- `panel/streamlit_panel.py`
 - `panel/guided_flow.py`
-- `panel/pipeline_control.py`
 - `tests/test_guided_flow.py`
-- `tests/test_pipeline_control.py`
 - `README.md`
 
 ## No tocar
 
+- `app.py`
+- `main.py`
+- `panel/streamlit_panel.py`
+- `panel/pipeline_control.py`
+- `tests/test_pipeline_control.py`
 - `parser/script_parser.py`
 - `tests/test_parser.py`
 - `ai/visual_classifier.py`
@@ -355,7 +172,6 @@ exports/preview_manifest.json
 - `placeholders/placeholder_generator.py`
 - `preparation/clip_preparer.py`
 - `rendering/preview_renderer.py`
-- `main.py`
 - `script.md`
 - `data/scenes.json`
 - `data/visual_plan.json`
@@ -369,19 +185,18 @@ exports/preview_manifest.json
 
 ## Criterios de aceptación
 
-- `streamlit run app.py` abre una UI guiada y no un tablero técnico gigante.
-- La sección de guion está claramente separada de la sección de video.
-- La UI permite editar y aprobar `script.md`.
-- La sección de video muestra escenas en pestañas.
-- Cada pestaña muestra tiempo, sección, texto en pantalla y visual.
-- Los clips sugeridos se muestran con thumbnail pequeño, duración, score y autor.
-- Cada escena permite máximo un asset seleccionado.
-- Las escenas sin clips o manuales muestran `Tarea manual requerida`.
-- Las escenas sin clips o manuales permiten subir video local.
-- La selección se guarda en `data/selected_assets.json`.
-- Existen botones claros de `Preview` y `Generar Video`.
-- Si existe `exports/preview_video.mp4`, se muestra en la UI con `st.video`.
-- El modo avanzado/debug existe pero no domina la pantalla principal.
+- `Confirmar selección` guarda `data/selected_assets.json`.
+- `Preview` no guarda selección automáticamente.
+- `Preview` muestra error si no existe selección confirmada.
+- `Preview` muestra mensaje de espera de 2 a 4 minutos.
+- `Preview` muestra progreso por fases.
+- El progreso usa pasos reales del pipeline, no porcentaje falso por tiempo.
+- Si una fase falla, el flujo se detiene y muestra error claro.
+- Al terminar, la UI muestra `exports/preview_video.mp4` con `st.video`.
+- Si existe el archivo, se muestra botón `Descargar video` o ruta clara.
+- Se elimina o reduce la duplicidad entre `Preview` y `Generar Video preliminar`.
+- El modo avanzado/debug sigue disponible.
+- No se agregan dependencias nuevas.
 - Los tests pasan.
 
 ## Tests esperados
@@ -395,15 +210,13 @@ Deben pasar.
 
 ## Fuera de alcance
 
-- Video final con voz en off.
-- Música final.
-- Subtítulos finales.
+- Porcentaje real basado en duración de render.
+- Jobs en segundo plano.
+- Cola de render.
+- Notificaciones del sistema.
+- Video final con audio.
+- Música.
+- Subtítulos.
 - Transiciones avanzadas.
-- Timeline editor drag-and-drop.
-- Reordenamiento manual de escenas.
-- Selección automática por mejor score.
-- Generador de guion perfecto desde prompt libre.
-- Next.js.
-- Login.
-- Pagos.
-- Base de datos.
+- Editor notes.
+- Rediseño completo adicional de la UI.
