@@ -26,15 +26,20 @@ LOCAL_ASSETS_DIR = Path("local_assets")
 PREVIEW_VIDEO_PATH = Path("exports/preview_video.mp4")
 VIDEO_INPUT_PATHS = [SCENES_PATH, VISUAL_PLAN_PATH, SCORED_RESULTS_PATH]
 SCENE_BOOTSTRAP_PHASES = ["parse", "classify", "search", "score"]
-PREVIEW_PHASES = [
-    "export",
-    "resolve",
-    "timeline",
-    "missing",
-    "placeholders",
-    "prepare",
-    "render",
+PREVIEW_STEPS = [
+    {"key": "export", "label": "Exportando assets"},
+    {"key": "resolve", "label": "Resolviendo assets"},
+    {"key": "timeline", "label": "Generando timeline"},
+    {"key": "missing", "label": "Detectando faltantes"},
+    {"key": "placeholders", "label": "Generando placeholders"},
+    {"key": "prepare", "label": "Preparando clips"},
+    {"key": "render", "label": "Renderizando preview"},
 ]
+PREVIEW_WAIT_MESSAGE = (
+    "Esto puede demorar entre 2 y 4 minutos según la cantidad y peso de los clips."
+)
+SELECTION_CONFIRMED_KEY = "guided_selection_confirmed"
+SELECTION_SIGNATURE_KEY = "guided_selection_signature"
 
 
 def run_guided_streamlit_flow(
@@ -88,7 +93,7 @@ def render_script_section(st, *, script_path: Path) -> None:
             placeholder="Ej: Hazme un video de 45 segundos para vender un sistema de cobranza...",
         )
 
-        if st.button("Generar Guion", type="primary", use_container_width=True):
+        if st.button("Generar Guion", type="primary", width="stretch"):
             st.session_state["guided_script_text"] = build_script_draft(
                 prompt=prompt,
                 current_script=read_text_or_empty(script_path),
@@ -109,13 +114,13 @@ def render_script_section(st, *, script_path: Path) -> None:
         approve_col, regenerate_col = st.columns(2)
 
         with approve_col:
-            if st.button("Aprobar Guion", type="primary", use_container_width=True):
+            if st.button("Aprobar Guion", type="primary", width="stretch"):
                 save_text(script_path, edited_script)
                 st.session_state["guided_script_text"] = edited_script
                 st.success(f"Guion aprobado y guardado en {script_path}.")
 
         with regenerate_col:
-            if st.button("Regenerar", use_container_width=True):
+            if st.button("Regenerar", width="stretch"):
                 st.session_state["guided_script_text"] = build_script_draft(
                     prompt=prompt,
                     current_script="",
@@ -193,7 +198,7 @@ def render_missing_video_inputs(st, missing_inputs: list[Path]) -> None:
     )
     st.info("Aprueba el guion y prepara escenas/clips sugeridos antes de crear el video.")
 
-    if st.button("Preparar escenas y clips sugeridos", type="primary", use_container_width=True):
+    if st.button("Preparar escenas y clips sugeridos", type="primary", width="stretch"):
         results = run_phase_sequence(SCENE_BOOTSTRAP_PHASES)
         render_phase_sequence_results(st, results)
 
@@ -386,11 +391,25 @@ def render_video_actions(
     preview_video_path: Path,
 ) -> None:
     st.markdown("---")
-    confirm_col, preview_col, generate_col = st.columns([1.2, 1, 1.2])
+    selection_signature = build_selection_signature(
+        choices_by_scene=choices_by_scene,
+        local_uploads_by_scene=local_uploads_by_scene,
+        previous_local_assets=previous_local_assets,
+    )
+    selection_confirmed = sync_selection_confirmation(
+        st=st,
+        selection_signature=selection_signature,
+        selected_assets_path=selected_assets_path,
+    )
+    preview_enabled = is_preview_enabled(
+        selected_assets_path=selected_assets_path,
+        selection_confirmed=selection_confirmed,
+    )
+    confirm_col, preview_col = st.columns([1.2, 1])
 
     with confirm_col:
-        if st.button("Confirmar selección", use_container_width=True):
-            save_selection_from_ui(
+        if st.button("Confirmar selección", width="stretch"):
+            if save_selection_from_ui(
                 st,
                 scenes=scenes,
                 visual_plan_by_scene=visual_plan_by_scene,
@@ -400,45 +419,18 @@ def render_video_actions(
                 local_uploads_by_scene=local_uploads_by_scene,
                 previous_local_assets=previous_local_assets,
                 selected_assets_path=selected_assets_path,
-            )
+            ):
+                mark_selection_confirmed(st, selection_signature)
+                st.info("Selección confirmada. Ahora puedes generar el preview.")
 
     with preview_col:
-        if st.button("Preview", use_container_width=True):
-            if save_selection_from_ui(
-                st,
-                scenes=scenes,
-                visual_plan_by_scene=visual_plan_by_scene,
-                scored_results_by_scene=scored_results_by_scene,
-                scored_results=scored_results,
-                choices_by_scene=choices_by_scene,
-                local_uploads_by_scene=local_uploads_by_scene,
-                previous_local_assets=previous_local_assets,
-                selected_assets_path=selected_assets_path,
-            ):
-                results = run_phase_sequence(PREVIEW_PHASES)
-                render_phase_sequence_results(st, results)
+        if st.button("Preview", type="primary", width="stretch", disabled=not preview_enabled):
+            run_preview_pipeline_with_progress(st)
 
-    with generate_col:
-        if st.button("Generar Video preliminar", type="primary", use_container_width=True):
-            if save_selection_from_ui(
-                st,
-                scenes=scenes,
-                visual_plan_by_scene=visual_plan_by_scene,
-                scored_results_by_scene=scored_results_by_scene,
-                scored_results=scored_results,
-                choices_by_scene=choices_by_scene,
-                local_uploads_by_scene=local_uploads_by_scene,
-                previous_local_assets=previous_local_assets,
-                selected_assets_path=selected_assets_path,
-            ):
-                results = run_phase_sequence(PREVIEW_PHASES)
-                render_phase_sequence_results(st, results)
+    if not preview_enabled:
+        st.warning("Primero confirma la selección de assets.")
 
-    if preview_video_path.exists():
-        st.success(f"Preview disponible: `{preview_video_path}`")
-        st.video(str(preview_video_path))
-    else:
-        st.info("Todavía no existe preview generado.")
+    render_preview_output(st, preview_video_path)
 
 
 def save_selection_from_ui(
@@ -477,6 +469,95 @@ def save_selection_from_ui(
         f"({len(selected_assets['selected_assets'])} assets)."
     )
     return True
+
+
+def mark_selection_confirmed(st, selection_signature: tuple[tuple[int, str, str], ...]) -> None:
+    st.session_state[SELECTION_CONFIRMED_KEY] = True
+    st.session_state[SELECTION_SIGNATURE_KEY] = selection_signature
+
+
+def sync_selection_confirmation(
+    *,
+    st,
+    selection_signature: tuple[tuple[int, str, str], ...],
+    selected_assets_path: Path,
+) -> bool:
+    if not selected_assets_path.exists():
+        st.session_state[SELECTION_CONFIRMED_KEY] = False
+        return False
+
+    if not st.session_state.get(SELECTION_CONFIRMED_KEY, False):
+        return False
+
+    if st.session_state.get(SELECTION_SIGNATURE_KEY) != selection_signature:
+        st.session_state[SELECTION_CONFIRMED_KEY] = False
+        return False
+
+    return True
+
+
+def is_preview_enabled(
+    *,
+    selected_assets_path: Path,
+    selection_confirmed: bool,
+) -> bool:
+    return selected_assets_path.exists() and selection_confirmed
+
+
+def run_preview_pipeline_with_progress(st) -> list[PhaseRunResult]:
+    st.info(PREVIEW_WAIT_MESSAGE)
+    progress = st.progress(0)
+    status = st.empty()
+    results = []
+    total_steps = len(PREVIEW_STEPS)
+
+    for index, step in enumerate(PREVIEW_STEPS, start=1):
+        label = str(step["label"])
+        phase_key = str(step["key"])
+        status.write(f"{index}/{total_steps} {label}…")
+
+        result = run_phase(phase_key)
+        results.append(result)
+        progress.progress(index / total_steps)
+
+        if result.success:
+            st.success(f"{index}/{total_steps} {label}: listo")
+            continue
+
+        st.error(f"{index}/{total_steps} {label}: {result.message}")
+        return results
+
+    status.write("Preview generado.")
+    st.success("Preview generado correctamente.")
+    return results
+
+
+def render_preview_output(st, preview_video_path: Path) -> None:
+    st.markdown("---")
+
+    if not preview_video_path.exists():
+        st.info("Todavía no existe preview generado.")
+        return
+
+    st.success(f"Video guardado en `{preview_video_path}`")
+    st.video(str(preview_video_path))
+    render_download_button(st, preview_video_path)
+
+
+def render_download_button(st, preview_video_path: Path) -> None:
+    try:
+        video_bytes = preview_video_path.read_bytes()
+    except OSError:
+        st.info(f"Puedes descargarlo manualmente desde `{preview_video_path}`.")
+        return
+
+    st.download_button(
+        "Descargar video",
+        data=video_bytes,
+        file_name=preview_video_path.name,
+        mime="video/mp4",
+        width="stretch",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -622,6 +703,32 @@ def prepare_local_assets_for_selection(
         local_assets[scene_number] = {}
 
     return local_assets
+
+
+def build_selection_signature(
+    *,
+    choices_by_scene: dict[int, str],
+    local_uploads_by_scene: dict[int, Any],
+    previous_local_assets: dict[int, dict[str, Any]],
+) -> tuple[tuple[int, str, str], ...]:
+    signature = []
+
+    for scene_number, choice in sorted(choices_by_scene.items()):
+        local_reference = ""
+
+        if choice == LOCAL_ASSET_CHOICE:
+            uploaded_file = local_uploads_by_scene.get(scene_number)
+
+            if uploaded_file is not None:
+                local_reference = clean_text(getattr(uploaded_file, "name", ""))
+            else:
+                local_reference = clean_text(
+                    previous_local_assets.get(scene_number, {}).get("local_path", "")
+                )
+
+        signature.append((int_or_zero(scene_number), clean_text(choice), local_reference))
+
+    return tuple(signature)
 
 
 def run_phase_sequence(phase_keys: list[str]) -> list[PhaseRunResult]:
